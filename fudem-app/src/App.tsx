@@ -1,15 +1,10 @@
-<<<<<<< HEAD
-import { useMemo, useState } from 'react'
-import { ProductCard } from './components/ProductCard'
-import { products, type Product } from './data/products'
-=======
 import { useEffect, useMemo, useState } from 'react'
+import { ProductCard } from './components/ProductCard'
 import { type Product } from './data/products'
 import {
   getAvailableProducts,
   type ProductoDisponible,
 } from './services/productService'
->>>>>>> fe4aab6470cdf8e6b961cb06d9b5672684fcfbd4
 import './App.css'
 
 const PAGE_SIZE = 6
