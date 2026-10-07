@@ -1,15 +1,9 @@
 import { useMemo, useState } from 'react'
+import { ProductCard } from './components/ProductCard'
 import { products, type Product } from './data/products'
 import './App.css'
 
 const PAGE_SIZE = 6
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat('es-SV', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value)
-}
 
 function sortProducts(list: Product[], order: string) {
   const sorted = [...list]
@@ -148,31 +142,7 @@ function App() {
 
             <ul className="grid-products">
               {pageItems.map((product) => (
-                <li
-                  key={product.id}
-                  className={product.outOfStock ? 'card card--out-of-stock' : 'card'}
-                >
-                  {product.onSale ? <span className="badge">Oferta</span> : null}
-                  <a className="card__media" href={`#${product.id}`}>
-                    <img src={product.image} alt="" />
-                  </a>
-                  <h2 className="card__title">
-                    <a href={`#${product.id}`}>{product.name}</a>
-                  </h2>
-                  <p className="card__price">
-                    {product.compareAt ? <del>{formatPrice(product.compareAt)}</del> : null}
-                    {formatPrice(product.price)}
-                  </p>
-                  {product.outOfStock ? (
-                    <span className="btn-loop" aria-disabled="true">
-                      Agotado
-                    </span>
-                  ) : (
-                    <a className="btn-loop" href={`#${product.id}`}>
-                      Ver montura
-                    </a>
-                  )}
-                </li>
+                <ProductCard key={product.id} product={product} />
               ))}
             </ul>
 
