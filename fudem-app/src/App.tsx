@@ -1,120 +1,251 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { useMemo, useState } from 'react'
+import { products, type Product } from './data/products'
 import './App.css'
 
+const PAGE_SIZE = 6
+
+function formatPrice(value: number) {
+  return new Intl.NumberFormat('es-SV', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(value)
+}
+
+function sortProducts(list: Product[], order: string) {
+  const sorted = [...list]
+  if (order === 'price-asc') {
+    sorted.sort((a, b) => a.price - b.price)
+  } else if (order === 'price-desc') {
+    sorted.sort((a, b) => b.price - a.price)
+  } else if (order === 'name') {
+    sorted.sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  }
+  return sorted
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [filter, setFilter] = useState('all')
+  const [order, setOrder] = useState('menu_order')
+  const [page, setPage] = useState(1)
+
+  const filteredProducts = useMemo(() => {
+    if (filter === 'sale') {
+      return products.filter((product) => product.onSale)
+    }
+    if (filter === 'available') {
+      return products.filter((product) => !product.outOfStock)
+    }
+    return products
+  }, [filter])
+
+  const orderedProducts = useMemo(
+    () => sortProducts(filteredProducts, order),
+    [filteredProducts, order],
+  )
+  const pageCount = Math.max(1, Math.ceil(orderedProducts.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount)
+  const pageItems = orderedProducts.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  )
+  const rangeStart = orderedProducts.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, orderedProducts.length)
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+      <header className="site-header">
+        <div className="site-header__row">
+          <a href="#catalogo" className="site-logo">
+            FUDEM
+          </a>
+          <nav className="nav" aria-label="Principal">
+            <ul>
+              <li>
+                <a href="#catalogo">Inicio</a>
+              </li>
+              <li className="is-active">
+                <a href="#catalogo" aria-current="page">
+                  Catálogo
+                </a>
+              </li>
+              <li>
+                <a href="#catalogo">Probador virtual</a>
+              </li>
+            </ul>
+          </nav>
+          <a className="btn btn--flat" href="#catalogo">
+            Agendar cita
+          </a>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      </header>
 
-      <div className="ticks"></div>
+      <main>
+        <section id="catalogo" className="section">
+          <div className="row">
+            <nav className="breadcrumb" aria-label="Miga de pan">
+              <a href="#catalogo">Inicio</a> / Catálogo
+            </nav>
+            <h1>Catálogo de lentes</h1>
+            <p>
+              Explora monturas disponibles y elige el modelo que mejor se adapte a
+              tu estilo. El probador virtual se integrará en un siguiente paso.
+            </p>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+            <div className="catalog-filters">
+              <button
+                type="button"
+                className={filter === 'all' ? 'btn--filter is-active' : 'btn--filter'}
+                onClick={() => {
+                  setFilter('all')
+                  setPage(1)
+                }}
+              >
+                Todos
+              </button>
+              <button
+                type="button"
+                className={filter === 'sale' ? 'btn--filter is-active' : 'btn--filter'}
+                onClick={() => {
+                  setFilter('sale')
+                  setPage(1)
+                }}
+              >
+                Ofertas
+              </button>
+              <button
+                type="button"
+                className={filter === 'available' ? 'btn--filter is-active' : 'btn--filter'}
+                onClick={() => {
+                  setFilter('available')
+                  setPage(1)
+                }}
+              >
+                Disponibles
+              </button>
+            </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+            <div className="catalog-toolbar">
+              <p className="result-count">
+                Mostrando {rangeStart}–{rangeEnd} de {orderedProducts.length} resultados
+              </p>
+              <label>
+                Ordenar
+                <select
+                  className="select-order"
+                  value={order}
+                  onChange={(event) => {
+                    setOrder(event.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="menu_order">Orden predeterminado</option>
+                  <option value="price-asc">Precio: menor a mayor</option>
+                  <option value="price-desc">Precio: mayor a menor</option>
+                  <option value="name">Nombre</option>
+                </select>
+              </label>
+            </div>
+
+            <ul className="grid-products">
+              {pageItems.map((product) => (
+                <li
+                  key={product.id}
+                  className={product.outOfStock ? 'card card--out-of-stock' : 'card'}
+                >
+                  {product.onSale ? <span className="badge">Oferta</span> : null}
+                  <a className="card__media" href={`#${product.id}`}>
+                    <img src={product.image} alt="" />
+                  </a>
+                  <h2 className="card__title">
+                    <a href={`#${product.id}`}>{product.name}</a>
+                  </h2>
+                  <p className="card__price">
+                    {product.compareAt ? <del>{formatPrice(product.compareAt)}</del> : null}
+                    {formatPrice(product.price)}
+                  </p>
+                  {product.outOfStock ? (
+                    <span className="btn-loop" aria-disabled="true">
+                      Agotado
+                    </span>
+                  ) : (
+                    <a className="btn-loop" href={`#${product.id}`}>
+                      Ver montura
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            <nav className="pagination" aria-label="Paginación">
+              <ul>
+                {Array.from({ length: pageCount }, (_, index) => {
+                  const pageNumber = index + 1
+                  const isCurrent = pageNumber === currentPage
+                  return (
+                    <li key={pageNumber}>
+                      {isCurrent ? (
+                        <span className="is-current" aria-current="page">
+                          {pageNumber}
+                        </span>
+                      ) : (
+                        <a
+                          href="#catalogo"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            setPage(pageNumber)
+                          }}
+                        >
+                          {pageNumber}
+                        </a>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </nav>
+          </div>
+        </section>
+      </main>
+
+      <footer className="site-footer">
+        <div className="container">
+          <div className="grid-footer">
+            <div>
+              <h4>FUDEM</h4>
+              <p>Atención visual accesible y un catálogo para probar monturas con confianza.</p>
+            </div>
+            <div>
+              <h4>Catálogo</h4>
+              <p>
+                <a href="#catalogo">Ver lentes</a>
+              </p>
+            </div>
+            <div>
+              <h4>Clínica</h4>
+              <p>
+                <a href="#catalogo">Agendar cita</a>
+              </p>
+            </div>
+            <div>
+              <h4>Ayuda</h4>
+              <p>
+                <a href="#catalogo">Preguntas frecuentes</a>
+              </p>
+            </div>
+            <div>
+              <h4>Contacto</h4>
+              <p>
+                <a className="btn btn--cta" href="#catalogo">
+                  Escribir
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="site-footer__bottom">
+          <p>© {new Date().getFullYear()} FUDEM — Probador virtual de lentes</p>
+        </div>
+      </footer>
     </>
   )
 }
