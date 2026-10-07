@@ -1,5 +1,9 @@
-import { useMemo, useState } from 'react'
-import { products, type Product } from './data/products'
+import { useEffect, useMemo, useState } from 'react'
+import { type Product } from './data/products'
+import {
+  getAvailableProducts,
+  type ProductoDisponible,
+} from './services/productService'
 import './App.css'
 
 const PAGE_SIZE = 6
@@ -23,10 +27,50 @@ function sortProducts(list: Product[], order: string) {
   return sorted
 }
 
+function catalogImageSrc(fileName: string | null): string {
+  const name = fileName?.split(/[/\\]/).pop()?.trim()
+  return name ? `/catalog/${name}` : '/catalog/aviador.svg'
+}
+
+function toCatalogProduct(product: ProductoDisponible): Product {
+  return {
+    id: String(product.id),
+    name: product.nombre ?? 'Sin nombre',
+    price: product.precio ?? 0,
+    image: catalogImageSrc(product.url_imagen),
+  }
+}
+
 function App() {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
   const [order, setOrder] = useState('menu_order')
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    let active = true
+
+    getAvailableProducts()
+      .then((rows) => {
+        if (!active) return
+        setProducts(rows.map(toCatalogProduct))
+        setLoadError(null)
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        setProducts([])
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'No se pudieron consultar los productos disponibles.',
+        )
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const filteredProducts = useMemo(() => {
     if (filter === 'sale') {
@@ -36,7 +80,7 @@ function App() {
       return products.filter((product) => !product.outOfStock)
     }
     return products
-  }, [filter])
+  }, [filter, products])
 
   const orderedProducts = useMemo(
     () => sortProducts(filteredProducts, order),
@@ -90,6 +134,7 @@ function App() {
               Explora monturas disponibles y elige el modelo que mejor se adapte a
               tu estilo. El probador virtual se integrará en un siguiente paso.
             </p>
+            {loadError ? <p role="alert">{loadError}</p> : null}
 
             <div className="catalog-filters">
               <button
