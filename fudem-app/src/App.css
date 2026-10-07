@@ -84,4 +84,9 @@ main {
   .site-header__row {
     flex-wrap: wrap;
   }
+
+  .grid-products {
+    column-gap: var(--space-4);
+    row-gap: var(--space-5);
+  }
 }
