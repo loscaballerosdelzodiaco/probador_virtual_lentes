@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ProductCard } from './components/ProductCard'
 import { type Product } from './data/products'
+import { catalogImageSrc } from './lib/catalogImage'
+import { ProductDetailPage } from './pages/ProductDetailPage'
 import {
   getAvailableProducts,
   type ProductoDisponible,
@@ -8,6 +10,13 @@ import {
 import './App.css'
 
 const PAGE_SIZE = 6
+
+function selectedProductIdFromHash(hash: string): number | null {
+  const value = hash.replace(/^#/, '')
+  if (!value || value === 'catalogo') return null
+  const id = Number(value)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
 
 function sortProducts(list: Product[], order: string) {
   const sorted = [...list]
@@ -19,11 +28,6 @@ function sortProducts(list: Product[], order: string) {
     sorted.sort((a, b) => a.name.localeCompare(b.name, 'es'))
   }
   return sorted
-}
-
-function catalogImageSrc(fileName: string | null): string {
-  const name = fileName?.split(/[/\\]/).pop()?.trim()
-  return name ? `/catalog/${name}` : '/catalog/aviador.svg'
 }
 
 function toCatalogProduct(product: ProductoDisponible): Product {
@@ -41,6 +45,18 @@ function App() {
   const [filter, setFilter] = useState('all')
   const [order, setOrder] = useState('menu_order')
   const [page, setPage] = useState(1)
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(() =>
+    selectedProductIdFromHash(window.location.hash),
+  )
+
+  useEffect(() => {
+    const onHashChange = () => {
+      setSelectedProductId(selectedProductIdFromHash(window.location.hash))
+    }
+
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -118,6 +134,9 @@ function App() {
       </header>
 
       <main>
+        {selectedProductId ? (
+          <ProductDetailPage productId={selectedProductId} />
+        ) : (
         <section id="catalogo" className="section">
           <div className="row">
             <nav className="breadcrumb" aria-label="Miga de pan">
@@ -220,6 +239,7 @@ function App() {
             </nav>
           </div>
         </section>
+        )}
       </main>
 
       <footer className="site-footer">

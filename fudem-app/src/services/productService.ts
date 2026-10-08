@@ -31,3 +31,21 @@ export async function getAvailableProducts(): Promise<ProductoDisponible[]> {
 
   return data ?? []
 }
+
+export async function getAvailableProductById(
+  id: number,
+): Promise<ProductoDisponible | null> {
+  const { data, error } = await supabase
+    .from('producto')
+    .select(PRODUCT_COLUMNS)
+    .eq('id', id)
+    .eq('disponible', true)
+    .returns<ProductoDisponible>()
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`No se pudo consultar el producto: ${error.message}`)
+  }
+
+  return data
+}
