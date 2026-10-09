@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { ProductCard } from './components/ProductCard'
 import { type Product } from './data/products'
 import { catalogImageSrc } from './lib/catalogImage'
+import {
+  matchesCategoryFilter,
+  type CategoryFilter,
+} from './lib/categoryFilter'
 import { ProductDetailPage } from './pages/ProductDetailPage'
 import {
+  CATALOG_LOAD_ERROR_MESSAGE,
   getAvailableProducts,
   type ProductoDisponible,
 } from './services/productService'
@@ -36,13 +41,15 @@ function toCatalogProduct(product: ProductoDisponible): Product {
     name: product.nombre ?? 'Sin nombre',
     price: product.precio ?? 0,
     image: catalogImageSrc(product.url_imagen),
+    category: product.categoria,
   }
 }
 
 function App() {
   const [products, setProducts] = useState<Product[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [filter, setFilter] = useState('all')
+  const [isLoading, setIsLoading] = useState(true)
+  const [filter, setFilter] = useState<CategoryFilter>('all')
   const [order, setOrder] = useState('menu_order')
   const [page, setPage] = useState(1)
   const [selectedProductId, setSelectedProductId] = useState<number | null>(() =>
@@ -69,12 +76,13 @@ function App() {
       })
       .catch((error: unknown) => {
         if (!active) return
+        console.error(error)
         setProducts([])
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : 'No se pudieron consultar los productos disponibles.',
-        )
+        setLoadError(CATALOG_LOAD_ERROR_MESSAGE)
+      })
+      .finally(() => {
+        if (!active) return
+        setIsLoading(false)
       })
 
     return () => {
@@ -82,15 +90,13 @@ function App() {
     }
   }, [])
 
-  const filteredProducts = useMemo(() => {
-    if (filter === 'sale') {
-      return products.filter((product) => product.onSale)
-    }
-    if (filter === 'available') {
-      return products.filter((product) => !product.outOfStock)
-    }
-    return products
-  }, [filter, products])
+  const filteredProducts = useMemo(
+    () =>
+      products.filter((product) =>
+        matchesCategoryFilter(product.category, filter),
+      ),
+    [filter, products],
+  )
 
   const orderedProducts = useMemo(
     () => sortProducts(filteredProducts, order),
@@ -147,8 +153,6 @@ function App() {
               Explora monturas disponibles y elige el modelo que mejor se adapte a
               tu estilo. El probador virtual se integrará en un siguiente paso.
             </p>
-            {loadError ? <p role="alert">{loadError}</p> : null}
-
             <div className="catalog-filters">
               <button
                 type="button"
@@ -162,26 +166,34 @@ function App() {
               </button>
               <button
                 type="button"
-                className={filter === 'sale' ? 'btn--filter is-active' : 'btn--filter'}
+                className={filter === 'hombre' ? 'btn--filter is-active' : 'btn--filter'}
                 onClick={() => {
-                  setFilter('sale')
+                  setFilter('hombre')
                   setPage(1)
                 }}
               >
-                Ofertas
+                Hombre
               </button>
               <button
                 type="button"
-                className={filter === 'available' ? 'btn--filter is-active' : 'btn--filter'}
+                className={filter === 'mujer' ? 'btn--filter is-active' : 'btn--filter'}
                 onClick={() => {
-                  setFilter('available')
+                  setFilter('mujer')
                   setPage(1)
                 }}
               >
-                Disponibles
+                Mujer
               </button>
             </div>
 
+            {isLoading ? <p role="status">Cargando productos…</p> : null}
+            {loadError ? (
+              <p className="notice notice--error" role="alert">
+                {loadError}
+              </p>
+            ) : null}
+
+            {!isLoading && !loadError ? (
             <div className="catalog-toolbar">
               <p className="result-count">
                 Mostrando {rangeStart}–{rangeEnd} de {orderedProducts.length} resultados
@@ -203,40 +215,60 @@ function App() {
                 </select>
               </label>
             </div>
+            ) : null}
 
-            <ul className="grid-products">
-              {pageItems.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </ul>
+            {!isLoading && !loadError && products.length === 0 ? (
+              <p className="notice" role="status">
+                Actualmente no hay productos disponibles.
+              </p>
+            ) : null}
 
-            <nav className="pagination" aria-label="Paginación">
-              <ul>
-                {Array.from({ length: pageCount }, (_, index) => {
-                  const pageNumber = index + 1
-                  const isCurrent = pageNumber === currentPage
-                  return (
-                    <li key={pageNumber}>
-                      {isCurrent ? (
-                        <span className="is-current" aria-current="page">
-                          {pageNumber}
-                        </span>
-                      ) : (
-                        <a
-                          href="#catalogo"
-                          onClick={(event) => {
-                            event.preventDefault()
-                            setPage(pageNumber)
-                          }}
-                        >
-                          {pageNumber}
-                        </a>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </nav>
+            {!isLoading &&
+            !loadError &&
+            products.length > 0 &&
+            orderedProducts.length === 0 ? (
+              <p className="notice" role="status">
+                No hay monturas en esta categoría.
+              </p>
+            ) : null}
+
+            {orderedProducts.length > 0 ? (
+              <>
+                <ul className="grid-products">
+                  {pageItems.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </ul>
+
+                <nav className="pagination" aria-label="Paginación">
+                  <ul>
+                    {Array.from({ length: pageCount }, (_, index) => {
+                      const pageNumber = index + 1
+                      const isCurrent = pageNumber === currentPage
+                      return (
+                        <li key={pageNumber}>
+                          {isCurrent ? (
+                            <span className="is-current" aria-current="page">
+                              {pageNumber}
+                            </span>
+                          ) : (
+                            <a
+                              href="#catalogo"
+                              onClick={(event) => {
+                                event.preventDefault()
+                                setPage(pageNumber)
+                              }}
+                            >
+                              {pageNumber}
+                            </a>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </nav>
+              </>
+            ) : null}
           </div>
         </section>
         )}
