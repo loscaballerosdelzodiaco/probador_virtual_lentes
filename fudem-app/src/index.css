@@ -1,4 +1,9 @@
 /* El lenguaje visual vive en design-system.css. Aquí solo se evita el layout del template de Vite. */
+html,
+body {
+  min-height: 100%;
+}
+
 #root {
-  min-height: 100svh;
+  min-height: 100dvh;
 }

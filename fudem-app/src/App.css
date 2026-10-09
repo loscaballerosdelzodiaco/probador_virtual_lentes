@@ -1,14 +1,20 @@
 /* Composición del catálogo: solo layout; tokens y componentes vienen del design system. */
 
 #root {
-  min-height: 100svh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
 }
 
 main {
-  flex: 1;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.site-footer {
+  margin-top: auto;
 }
 
 .site-header__row {
@@ -272,6 +278,44 @@ main {
   margin-bottom: var(--space-5);
 }
 
+.site-footer .grid-footer {
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.site-footer__brand p {
+  margin: var(--space-2) 0 0;
+  max-width: 28rem;
+}
+
+.site-footer__nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4) var(--space-5);
+}
+
+.site-footer__nav a,
+.site-footer__contact a.btn {
+  display: inline-flex;
+  margin-top: var(--space-2);
+}
+
+.site-footer__bottom p {
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .site-footer .grid-footer {
+    grid-template-columns: minmax(12rem, 1.4fr) minmax(0, 2fr) auto;
+    gap: var(--space-6);
+  }
+
+  .site-footer__nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (min-width: 900px) {
   .product-detail__media.card {
     max-width: 420px;
@@ -292,7 +336,9 @@ main {
 
 .auth-screen {
   display: grid;
-  min-height: calc(100svh - 8rem);
+  flex: 1;
+  width: 100%;
+  min-height: 0;
   background: var(--color-bg-alt);
 }
 
@@ -497,7 +543,7 @@ main {
 @media (min-width: 768px) {
   .auth-screen {
     grid-template-columns: minmax(16rem, 0.42fr) minmax(0, 0.58fr);
-    min-height: calc(100svh - 6rem);
+    min-height: 0;
   }
 
   .auth-screen__visual {

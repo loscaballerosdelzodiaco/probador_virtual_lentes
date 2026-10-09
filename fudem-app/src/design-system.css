@@ -217,7 +217,7 @@ a:hover { color: var(--color-accent-hover); }
 .nav a:hover,
 .nav .is-active > a { color: var(--color-secondary); }
 
-.site-footer { background: var(--color-bg-alt); padding: var(--space-7) 0 var(--space-5); }
+.site-footer { background: var(--color-bg-alt); padding: var(--space-7) 0 0; }
 .site-footer h4 { color: var(--color-accent); }
 .site-footer__bottom {
   background: var(--color-secondary);

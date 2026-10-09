@@ -172,35 +172,29 @@ function App() {
       <footer className="site-footer">
         <div className="container">
           <div className="grid-footer">
-            <div>
+            <div className="site-footer__brand">
               <h4>FUDEM</h4>
               <p>Atención visual accesible y un catálogo para probar aros con confianza.</p>
             </div>
-            <div>
-              <h4>Catálogo</h4>
-              <p>
+            <nav className="site-footer__nav" aria-label="Pie de página">
+              <div>
+                <h4>Catálogo</h4>
                 <a href="/catalogo">Ver lentes</a>
-              </p>
-            </div>
-            <div>
-              <h4>Cuenta</h4>
-              <p>
+              </div>
+              <div>
+                <h4>Cuenta</h4>
                 <a href="/">Registrarse</a>
-              </p>
-            </div>
-            <div>
-              <h4>Ayuda</h4>
-              <p>
+              </div>
+              <div>
+                <h4>Ayuda</h4>
                 <a href="/login">Iniciar sesión</a>
-              </p>
-            </div>
-            <div>
+              </div>
+            </nav>
+            <div className="site-footer__contact">
               <h4>Contacto</h4>
-              <p>
-                <a className="btn btn--cta" href="/">
-                  Escribir
-                </a>
-              </p>
+              <a className="btn btn--cta" href="/">
+                Escribir
+              </a>
             </div>
           </div>
         </div>
