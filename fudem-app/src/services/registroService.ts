@@ -1,4 +1,5 @@
-import type { Session } from '@supabase/supabase-js'
+import type { AuthError, Session } from '@supabase/supabase-js'
+import { normalizePhone } from '../lib/fieldMasks'
 import { supabase } from '../lib/supabase'
 
 const USUARIO_TABLE = 'usuario'
@@ -20,8 +21,35 @@ export const REGISTRO_ERROR_MESSAGE =
 export const REGISTRO_DUPLICADO_MESSAGE =
   'Ya existe una cuenta con ese DUI o correo.'
 
+export const REGISTRO_RATE_LIMIT_MESSAGE =
+  'Hay demasiados intentos de registro. Espera unos minutos e inicia sesión si ya creaste la cuenta.'
+
 function todayAsDate(): string {
   return new Date().toLocaleDateString('en-CA')
+}
+
+export function messageFromSignupError(error: Pick<AuthError, 'message'> & { status?: number; code?: string }): string {
+  const text = `${error.code ?? ''} ${error.message}`
+  if (
+    error.status === 429 ||
+    /rate limit|too many requests|over_email_send_rate_limit/i.test(text)
+  ) {
+    return REGISTRO_RATE_LIMIT_MESSAGE
+  }
+
+  if (/already registered|already been registered|already exists/i.test(error.message)) {
+    return REGISTRO_DUPLICADO_MESSAGE
+  }
+
+  return REGISTRO_ERROR_MESSAGE
+}
+
+function isProfilePermissionError(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === '42501' ||
+    error.code === 'PGRST301' ||
+    /jwt|not authorized|permission denied|unauthorized/i.test(error.message ?? '')
+  )
 }
 
 export async function registrarUsuario(
@@ -33,28 +61,32 @@ export async function registrarUsuario(
   })
 
   if (signUpError) {
-    const duplicated =
-      /already registered|already been registered|already exists/i.test(
-        signUpError.message,
-      )
-    throw new Error(
-      duplicated ? REGISTRO_DUPLICADO_MESSAGE : REGISTRO_ERROR_MESSAGE,
-      { cause: signUpError },
-    )
+    throw new Error(messageFromSignupError(signUpError), { cause: signUpError })
+  }
+
+  if (data.user && data.user.identities && data.user.identities.length === 0) {
+    throw new Error(REGISTRO_DUPLICADO_MESSAGE)
+  }
+
+  const session = data.session
+
+  if (!session) {
+    return { session: null }
   }
 
   const { error } = await supabase.from(USUARIO_TABLE).insert({
     ...usuario,
+    telefono: normalizePhone(usuario.telefono),
     fecha_registro: todayAsDate(),
   })
 
-  if (error) {
-    const message =
-      error.code === UNIQUE_VIOLATION_CODE
-        ? REGISTRO_DUPLICADO_MESSAGE
-        : REGISTRO_ERROR_MESSAGE
-    throw new Error(message, { cause: error })
+  if (error && error.code === UNIQUE_VIOLATION_CODE) {
+    throw new Error(REGISTRO_DUPLICADO_MESSAGE, { cause: error })
   }
 
-  return { session: data.session }
+  if (error && !isProfilePermissionError(error)) {
+    throw new Error(REGISTRO_ERROR_MESSAGE, { cause: error })
+  }
+
+  return { session }
 }

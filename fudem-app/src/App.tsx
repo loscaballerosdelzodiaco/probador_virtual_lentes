@@ -7,7 +7,7 @@ import {
   type AppRoute,
 } from './lib/appRoute'
 import { CatalogPage } from './pages/CatalogPage'
-import { LoginPendingPage } from './pages/LoginPendingPage'
+import { LoginPage } from './pages/LoginPage'
 import { RegistroPage } from './pages/RegistroPage'
 import {
   SESSION_ERROR_MESSAGE,
@@ -68,11 +68,11 @@ function App() {
     if (authLoading) return
 
     if ((!session || authError) && isCatalogRoute(route)) {
-      replaceLocation('/')
+      replaceLocation('/login')
       return
     }
 
-    if (session && !authError && route.name === 'registro') {
+    if (session && !authError && (route.name === 'registro' || route.name === 'login')) {
       replaceLocation('/catalogo')
     }
   }, [authError, authLoading, route, session])
@@ -149,7 +149,12 @@ function App() {
         ) : null}
 
         {!authLoading && !authError && !session && route.name === 'login' ? (
-          <LoginPendingPage />
+          <LoginPage
+            onLoggedIn={(nextSession) => {
+              setSession(nextSession)
+              replaceLocation('/catalogo')
+            }}
+          />
         ) : null}
 
         {!authLoading && !authError && !session && route.name !== 'login' ? (

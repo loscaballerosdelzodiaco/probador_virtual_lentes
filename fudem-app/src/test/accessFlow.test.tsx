@@ -1,11 +1,13 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Session } from '@supabase/supabase-js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import {
+  LOGIN_ERROR_MESSAGE,
   SESSION_ERROR_MESSAGE,
   getCurrentSession,
+  signIn,
   subscribeToAuthChanges,
 } from '../services/authService'
 import { registrarUsuario } from '../services/registroService'
@@ -14,8 +16,11 @@ import { fakeSession } from './authMocks'
 vi.mock('../services/authService', () => ({
   SESSION_ERROR_MESSAGE:
     'No pudimos validar tu sesión. Inténtalo de nuevo en unos momentos.',
+  LOGIN_ERROR_MESSAGE:
+    'No pudimos iniciar sesión. Revisa tu correo y contraseña.',
   getCurrentSession: vi.fn(),
   subscribeToAuthChanges: vi.fn(() => () => {}),
+  signIn: vi.fn(),
   signOut: vi.fn(),
 }))
 
@@ -40,7 +45,9 @@ async function fillRegistro() {
   await user.type(screen.getByLabelText('Correo / Usuario'), 'ana@test.com')
   await user.type(screen.getByLabelText('Teléfono'), '7000-0000')
   await user.type(screen.getByLabelText('Contraseña'), '12345678')
+  await user.type(screen.getByLabelText('Confirmar contraseña'), '12345678')
   await user.click(screen.getByRole('button', { name: 'Registrarse' }))
+  return user
 }
 
 describe('flujo de acceso', () => {
@@ -50,6 +57,7 @@ describe('flujo de acceso', () => {
     vi.mocked(subscribeToAuthChanges).mockReset()
     vi.mocked(subscribeToAuthChanges).mockReturnValue(() => {})
     vi.mocked(registrarUsuario).mockReset()
+    vi.mocked(signIn).mockReset()
     vi.mocked(getCurrentSession).mockResolvedValue(null)
   })
 
@@ -60,11 +68,11 @@ describe('flujo de acceso', () => {
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
-  it('redirige al registro si se abre el catálogo sin sesión', async () => {
+  it('redirige al login si se abre el catálogo sin sesión', async () => {
     window.history.replaceState(null, '', '/catalogo')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Crear cuenta' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
@@ -100,7 +108,7 @@ describe('flujo de acceso', () => {
 
     onSession?.(null)
 
-    expect(await screen.findByRole('heading', { name: 'Crear cuenta' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
@@ -122,8 +130,60 @@ describe('flujo de acceso', () => {
     await fillRegistro()
 
     expect(
-      await screen.findByText('Cuenta creada. Inicia sesión para acceder al catálogo.'),
+      await screen.findByText(/Cuenta creada. Inicia sesión para acceder al catálogo./),
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+  })
+
+  it('entra al catálogo al iniciar sesión con credenciales válidas', async () => {
+    vi.mocked(signIn).mockResolvedValue(fakeSession)
+    window.history.replaceState(null, '', '/login')
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Iniciar sesión' })
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Correo'), 'ana@test.com')
+    await user.type(screen.getByLabelText('Contraseña'), '12345678')
+    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Catálogo de lentes' }),
+    ).toBeInTheDocument()
+  })
+
+  it('muestra el error de Supabase con credenciales incorrectas', async () => {
+    vi.mocked(signIn).mockRejectedValue(new Error(LOGIN_ERROR_MESSAGE))
+    window.history.replaceState(null, '', '/login')
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Iniciar sesión' })
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Correo'), 'ana@test.com')
+    await user.type(screen.getByLabelText('Contraseña'), 'incorrecta')
+    await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(LOGIN_ERROR_MESSAGE)
+    expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+  })
+
+  it('evita envíos duplicados mientras registra', async () => {
+    let finish: ((value: { session: Session | null }) => void) | undefined
+    vi.mocked(registrarUsuario).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Crear cuenta' })
+    await fillRegistro()
+
+    expect(screen.getByRole('button', { name: 'Registrando…' })).toBeDisabled()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Registrando…' }))
+    expect(registrarUsuario).toHaveBeenCalledTimes(1)
+    finish?.({ session: null })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Registrarse' })).toBeEnabled()
+    })
   })
 })

@@ -4,6 +4,9 @@ import { supabase } from '../lib/supabase'
 export const SESSION_ERROR_MESSAGE =
   'No pudimos validar tu sesión. Inténtalo de nuevo en unos momentos.'
 
+export const LOGIN_ERROR_MESSAGE =
+  'No pudimos iniciar sesión. Revisa tu correo y contraseña.'
+
 export async function getCurrentSession(): Promise<Session | null> {
   const { data, error } = await supabase.auth.getSession()
 
@@ -26,6 +29,22 @@ export function subscribeToAuthChanges(
   return () => {
     subscription.unsubscribe()
   }
+}
+
+export async function signIn(
+  correo: string,
+  contrasena: string,
+): Promise<Session> {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: correo,
+    password: contrasena,
+  })
+
+  if (error || !data.session) {
+    throw new Error(LOGIN_ERROR_MESSAGE, { cause: error })
+  }
+
+  return data.session
 }
 
 export async function signOut(): Promise<void> {

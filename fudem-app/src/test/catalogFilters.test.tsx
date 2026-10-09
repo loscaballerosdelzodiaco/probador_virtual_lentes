@@ -10,8 +10,11 @@ import { fakeSession } from './authMocks'
 vi.mock('../services/authService', () => ({
   SESSION_ERROR_MESSAGE:
     'No pudimos validar tu sesión. Inténtalo de nuevo en unos momentos.',
+  LOGIN_ERROR_MESSAGE:
+    'No pudimos iniciar sesión. Revisa tu correo y contraseña.',
   getCurrentSession: vi.fn(),
   subscribeToAuthChanges: vi.fn(() => () => {}),
+  signIn: vi.fn(),
   signOut: vi.fn(),
 }))
 
