@@ -48,7 +48,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
     <section id="detalle" className="section">
       <div className="row">
         <nav className="breadcrumb" aria-label="Miga de pan">
-          <a href="#catalogo">Inicio</a> / <a href="#catalogo">Catálogo</a> /{' '}
+          <a href="/catalogo">Inicio</a> / <a href="/catalogo">Catálogo</a> /{' '}
           {title}
         </nav>
 
@@ -61,7 +61,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
         {!isLoading && !loadError && !product ? (
           <p className="notice" role="status">
             No encontramos esta montura disponible.{' '}
-            <a href="#catalogo">Volver al catálogo</a>
+            <a href="/catalogo">Volver al catálogo</a>
           </p>
         ) : null}
         {product ? <ProductDetail product={product} /> : null}
