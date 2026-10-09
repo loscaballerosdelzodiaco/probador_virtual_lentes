@@ -15,6 +15,18 @@ export type NuevoUsuario = {
   contrasena: string
 }
 
+export type UsuarioProfilePayload = {
+  id: string
+  dui: string
+  nombre: string
+  apellido: string
+  fecha_nacimiento: string
+  correo: string
+  telefono: string
+  contrasena: string
+  fecha_registro: string
+}
+
 export const REGISTRO_ERROR_MESSAGE =
   'No pudimos crear tu cuenta. Inténtalo de nuevo en unos momentos.'
 
@@ -44,21 +56,56 @@ export function messageFromSignupError(error: Pick<AuthError, 'message'> & { sta
   return REGISTRO_ERROR_MESSAGE
 }
 
+export function buildSignupOptions(usuario: NuevoUsuario) {
+  return {
+    email: usuario.correo,
+    password: usuario.contrasena,
+    options: {
+      data: {
+        dui: usuario.dui,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        fecha_nacimiento: usuario.fecha_nacimiento,
+        telefono: normalizePhone(usuario.telefono),
+      },
+    },
+  }
+}
+
+export function buildUsuarioProfile(
+  authUserId: string,
+  usuario: NuevoUsuario,
+): UsuarioProfilePayload {
+  return {
+    id: authUserId,
+    dui: usuario.dui,
+    nombre: usuario.nombre,
+    apellido: usuario.apellido,
+    fecha_nacimiento: usuario.fecha_nacimiento,
+    correo: usuario.correo,
+    telefono: normalizePhone(usuario.telefono),
+    contrasena: '',
+    fecha_registro: todayAsDate(),
+  }
+}
+
 function isProfilePermissionError(error: { code?: string; message?: string }): boolean {
   return (
     error.code === '42501' ||
     error.code === 'PGRST301' ||
-    /jwt|not authorized|permission denied|unauthorized/i.test(error.message ?? '')
+    error.code === 'PGRST204' ||
+    /jwt|not authorized|permission denied|unauthorized|column .* does not exist/i.test(
+      error.message ?? '',
+    )
   )
 }
 
 export async function registrarUsuario(
   usuario: NuevoUsuario,
 ): Promise<{ session: Session | null }> {
-  const { data, error: signUpError } = await supabase.auth.signUp({
-    email: usuario.correo,
-    password: usuario.contrasena,
-  })
+  const { data, error: signUpError } = await supabase.auth.signUp(
+    buildSignupOptions(usuario),
+  )
 
   if (signUpError) {
     throw new Error(messageFromSignupError(signUpError), { cause: signUpError })
@@ -69,19 +116,23 @@ export async function registrarUsuario(
   }
 
   const session = data.session
+  const authUserId = data.user?.id ?? session?.user.id
+
+  if (!authUserId) {
+    return { session: null }
+  }
 
   if (!session) {
     return { session: null }
   }
 
-  const { error } = await supabase.from(USUARIO_TABLE).insert({
-    ...usuario,
-    telefono: normalizePhone(usuario.telefono),
-    fecha_registro: todayAsDate(),
-  })
+  const { error } = await supabase.from(USUARIO_TABLE).upsert(
+    buildUsuarioProfile(authUserId, usuario),
+    { onConflict: 'id' },
+  )
 
   if (error && error.code === UNIQUE_VIOLATION_CODE) {
-    throw new Error(REGISTRO_DUPLICADO_MESSAGE, { cause: error })
+    return { session }
   }
 
   if (error && !isProfilePermissionError(error)) {
