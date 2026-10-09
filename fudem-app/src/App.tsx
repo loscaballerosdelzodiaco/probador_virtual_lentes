@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { ProductCard } from './components/ProductCard'
 import { type Product } from './data/products'
 import { catalogImageSrc } from './lib/catalogImage'
+import {
+  matchesCategoryFilter,
+  type CategoryFilter,
+} from './lib/categoryFilter'
 import { ProductDetailPage } from './pages/ProductDetailPage'
 import {
   CATALOG_LOAD_ERROR_MESSAGE,
@@ -37,6 +41,7 @@ function toCatalogProduct(product: ProductoDisponible): Product {
     name: product.nombre ?? 'Sin nombre',
     price: product.precio ?? 0,
     image: catalogImageSrc(product.url_imagen),
+    category: product.categoria,
   }
 }
 
@@ -44,7 +49,7 @@ function App() {
   const [products, setProducts] = useState<Product[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState<CategoryFilter>('all')
   const [order, setOrder] = useState('menu_order')
   const [page, setPage] = useState(1)
   const [selectedProductId, setSelectedProductId] = useState<number | null>(() =>
@@ -85,15 +90,13 @@ function App() {
     }
   }, [])
 
-  const filteredProducts = useMemo(() => {
-    if (filter === 'sale') {
-      return products.filter((product) => product.onSale)
-    }
-    if (filter === 'available') {
-      return products.filter((product) => !product.outOfStock)
-    }
-    return products
-  }, [filter, products])
+  const filteredProducts = useMemo(
+    () =>
+      products.filter((product) =>
+        matchesCategoryFilter(product.category, filter),
+      ),
+    [filter, products],
+  )
 
   const orderedProducts = useMemo(
     () => sortProducts(filteredProducts, order),
@@ -163,23 +166,23 @@ function App() {
               </button>
               <button
                 type="button"
-                className={filter === 'sale' ? 'btn--filter is-active' : 'btn--filter'}
+                className={filter === 'hombre' ? 'btn--filter is-active' : 'btn--filter'}
                 onClick={() => {
-                  setFilter('sale')
+                  setFilter('hombre')
                   setPage(1)
                 }}
               >
-                Ofertas
+                Hombre
               </button>
               <button
                 type="button"
-                className={filter === 'available' ? 'btn--filter is-active' : 'btn--filter'}
+                className={filter === 'mujer' ? 'btn--filter is-active' : 'btn--filter'}
                 onClick={() => {
-                  setFilter('available')
+                  setFilter('mujer')
                   setPage(1)
                 }}
               >
-                Disponibles
+                Mujer
               </button>
             </div>
 
@@ -217,6 +220,15 @@ function App() {
             {!isLoading && !loadError && products.length === 0 ? (
               <p className="notice" role="status">
                 Actualmente no hay productos disponibles.
+              </p>
+            ) : null}
+
+            {!isLoading &&
+            !loadError &&
+            products.length > 0 &&
+            orderedProducts.length === 0 ? (
+              <p className="notice" role="status">
+                No hay monturas en esta categoría.
               </p>
             ) : null}
 

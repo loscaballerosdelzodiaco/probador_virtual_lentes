@@ -4,6 +4,7 @@ export type Product = {
   price: number
   compareAt?: number
   image: string
+  category?: string | null
   onSale?: boolean
   outOfStock?: boolean
 }
