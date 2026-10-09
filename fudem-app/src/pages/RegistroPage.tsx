@@ -1,7 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { registrarUsuario } from '../services/registroService'
+import { validateRegistro } from '../lib/registroValidation'
+import {
+  REGISTRO_ERROR_MESSAGE,
+  registrarUsuario,
+} from '../services/registroService'
 
 export function RegistroPage() {
+    const [errorMessages, setErrorMessages] = useState<string[]>([])
     const [isRegistered, setIsRegistered] = useState(false)
 
     async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -10,22 +15,34 @@ export function RegistroPage() {
       const data = new FormData(form)
       const field = (name: string) => String(data.get(name) ?? '').trim()
 
+      const usuario = {
+        dui: field('dui'),
+        nombre: field('nombre'),
+        apellido: field('apellido'),
+        fecha_nacimiento: field('fecha_nacimiento'),
+        correo: field('correo'),
+        telefono: field('telefono'),
+        contrasena: String(data.get('contrasena') ?? ''),
+      }
+
       setIsRegistered(false)
 
+      const messages = Object.values(validateRegistro(usuario))
+      if (messages.length > 0) {
+        setErrorMessages(messages)
+        return
+      }
+      setErrorMessages([])
+
       try {
-        await registrarUsuario({
-          dui: field('dui'),
-          nombre: field('nombre'),
-          apellido: field('apellido'),
-          fecha_nacimiento: field('fecha_nacimiento'),
-          correo: field('correo'),
-          telefono: field('telefono'),
-          contrasena: String(data.get('contrasena') ?? ''),
-        })
+        await registrarUsuario(usuario)
         setIsRegistered(true)
         form.reset()
       } catch (error: unknown) {
         console.error(error)
+        setErrorMessages([
+          error instanceof Error ? error.message : REGISTRO_ERROR_MESSAGE,
+        ])
       }
     }
 
@@ -35,7 +52,7 @@ export function RegistroPage() {
           <h1>Crear cuenta</h1>
           <p>Completa tus datos para registrarte en la plataforma.</p>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <p>
               <label htmlFor="registro-dui">DUI</label>
               <br />
@@ -120,6 +137,13 @@ export function RegistroPage() {
               />
             </p>
 
+            {errorMessages.length > 0 ? (
+              <ul className="notice notice--error" role="alert">
+                {errorMessages.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            ) : null}
             {isRegistered ? (
               <p className="notice notice--success" role="status">
                 Cuenta creada correctamente.
