@@ -16,6 +16,9 @@ export type ProductoDisponible = {
 const PRODUCT_COLUMNS =
   'id, nombre, precio, sku, material, color, medidas, categoria, url_imagen, disponible'
 
+export const CATALOG_LOAD_ERROR_MESSAGE =
+  'No pudimos cargar el catálogo. Inténtalo de nuevo en unos momentos.'
+
 export async function getAvailableProducts(): Promise<ProductoDisponible[]> {
   const { data, error } = await supabase
     .from('producto')
@@ -24,9 +27,7 @@ export async function getAvailableProducts(): Promise<ProductoDisponible[]> {
     .returns<ProductoDisponible[]>()
 
   if (error) {
-    throw new Error(
-      `No se pudieron consultar los productos disponibles: ${error.message}`,
-    )
+    throw new Error(CATALOG_LOAD_ERROR_MESSAGE, { cause: error })
   }
 
   return data ?? []

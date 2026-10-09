@@ -4,6 +4,7 @@ import { type Product } from './data/products'
 import { catalogImageSrc } from './lib/catalogImage'
 import { ProductDetailPage } from './pages/ProductDetailPage'
 import {
+  CATALOG_LOAD_ERROR_MESSAGE,
   getAvailableProducts,
   type ProductoDisponible,
 } from './services/productService'
@@ -70,12 +71,9 @@ function App() {
       })
       .catch((error: unknown) => {
         if (!active) return
+        console.error(error)
         setProducts([])
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : 'No se pudieron consultar los productos disponibles.',
-        )
+        setLoadError(CATALOG_LOAD_ERROR_MESSAGE)
       })
       .finally(() => {
         if (!active) return
@@ -152,12 +150,6 @@ function App() {
               Explora monturas disponibles y elige el modelo que mejor se adapte a
               tu estilo. El probador virtual se integrará en un siguiente paso.
             </p>
-            {loadError ? (
-              <p className="notice notice--error" role="alert">
-                {loadError}
-              </p>
-            ) : null}
-
             <div className="catalog-filters">
               <button
                 type="button"
@@ -191,6 +183,14 @@ function App() {
               </button>
             </div>
 
+            {isLoading ? <p role="status">Cargando productos…</p> : null}
+            {loadError ? (
+              <p className="notice notice--error" role="alert">
+                {loadError}
+              </p>
+            ) : null}
+
+            {!isLoading && !loadError ? (
             <div className="catalog-toolbar">
               <p className="result-count">
                 Mostrando {rangeStart}–{rangeEnd} de {orderedProducts.length} resultados
@@ -212,6 +212,7 @@ function App() {
                 </select>
               </label>
             </div>
+            ) : null}
 
             {!isLoading && !loadError && products.length === 0 ? (
               <p className="notice" role="status">
