@@ -21,6 +21,7 @@ main {
   font-family: var(--font-heading);
   font-size: var(--text-xl);
   font-weight: var(--weight-semibold);
+  transition: color var(--duration-fast) var(--ease);
 }
 
 .site-logo:hover {
@@ -39,11 +40,20 @@ main {
 .catalog-filters {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   margin: 0 0 var(--space-5);
+  padding: var(--space-2) 0 var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border-soft);
 }
 
 .btn--filter.is-active {
+  background: var(--color-bg-dark);
+  border-color: var(--color-bg-dark);
+  color: var(--color-text-on-accent);
+}
+
+.btn--filter.is-active:hover {
   background: var(--color-bg-dark);
   color: var(--color-text-on-accent);
 }
@@ -76,6 +86,17 @@ main {
   margin-bottom: var(--space-6);
 }
 
+.grid-products .card {
+  animation: fade-up var(--duration) var(--ease) both;
+}
+
+.grid-products .card:nth-child(1) { animation-delay: 0.02s; }
+.grid-products .card:nth-child(2) { animation-delay: 0.06s; }
+.grid-products .card:nth-child(3) { animation-delay: 0.1s; }
+.grid-products .card:nth-child(4) { animation-delay: 0.14s; }
+.grid-products .card:nth-child(5) { animation-delay: 0.18s; }
+.grid-products .card:nth-child(6) { animation-delay: 0.22s; }
+
 #detalle .breadcrumb {
   margin: 0 0 var(--space-6);
   font-size: var(--text-xs);
@@ -101,6 +122,12 @@ main {
 
 .product-detail__media.card:hover {
   border-color: var(--color-border);
+  box-shadow: var(--shadow-card);
+  transform: none;
+}
+
+.product-detail__media.card:hover .card__media img {
+  transform: none;
 }
 
 .product-detail .card__media {
@@ -151,6 +178,7 @@ main {
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-bg);
+  box-shadow: var(--shadow-card);
 }
 
 .product-detail__spec {
