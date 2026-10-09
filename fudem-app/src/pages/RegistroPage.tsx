@@ -7,6 +7,19 @@ export function RegistroPage() {
   
           <form>
             <p>
+              <label htmlFor="registro-dui">DUI</label>
+              <br />
+              <input
+                id="registro-dui"
+                name="dui"
+                type="text"
+                inputMode="numeric"
+                placeholder="00000000-0"
+                required
+              />
+            </p>
+
+            <p>
               <label htmlFor="registro-nombre">Nombre</label>
               <br />
               <input
@@ -17,7 +30,30 @@ export function RegistroPage() {
                 required
               />
             </p>
-  
+
+            <p>
+              <label htmlFor="registro-apellido">Apellido</label>
+              <br />
+              <input
+                id="registro-apellido"
+                name="apellido"
+                type="text"
+                autoComplete="family-name"
+                required
+              />
+            </p>
+
+            <p>
+              <label htmlFor="registro-fecha-nacimiento">Fecha de nacimiento</label>
+              <br />
+              <input
+                id="registro-fecha-nacimiento"
+                name="fecha_nacimiento"
+                type="date"
+                required
+              />
+            </p>
+
             <p>
               <label htmlFor="registro-correo">Correo / Usuario</label>
               <br />
@@ -29,7 +65,19 @@ export function RegistroPage() {
                 required
               />
             </p>
-  
+    
+            <p>
+              <label htmlFor="registro-telefono">Teléfono</label>
+              <br />
+              <input
+                id="registro-telefono"
+                name="telefono"
+                type="tel"
+                autoComplete="tel"
+                required
+              />
+            </p>
+
             <p>
               <label htmlFor="registro-contrasena">Contraseña</label>
               <br />
