@@ -1,11 +1,41 @@
+import { useState, type FormEvent } from 'react'
+import { registrarUsuario } from '../services/registroService'
+
 export function RegistroPage() {
+    const [isRegistered, setIsRegistered] = useState(false)
+
+    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+      event.preventDefault()
+      const form = event.currentTarget
+      const data = new FormData(form)
+      const field = (name: string) => String(data.get(name) ?? '').trim()
+
+      setIsRegistered(false)
+
+      try {
+        await registrarUsuario({
+          dui: field('dui'),
+          nombre: field('nombre'),
+          apellido: field('apellido'),
+          fecha_nacimiento: field('fecha_nacimiento'),
+          correo: field('correo'),
+          telefono: field('telefono'),
+          contrasena: String(data.get('contrasena') ?? ''),
+        })
+        setIsRegistered(true)
+        form.reset()
+      } catch (error: unknown) {
+        console.error(error)
+      }
+    }
+
     return (
       <section id="registro" className="section">
         <div className="container prose">
           <h1>Crear cuenta</h1>
           <p>Completa tus datos para registrarte en la plataforma.</p>
-  
-          <form>
+
+          <form onSubmit={handleSubmit}>
             <p>
               <label htmlFor="registro-dui">DUI</label>
               <br />
@@ -65,7 +95,7 @@ export function RegistroPage() {
                 required
               />
             </p>
-    
+
             <p>
               <label htmlFor="registro-telefono">Teléfono</label>
               <br />
@@ -89,12 +119,18 @@ export function RegistroPage() {
                 required
               />
             </p>
-  
+
+            {isRegistered ? (
+              <p className="notice notice--success" role="status">
+                Cuenta creada correctamente.
+              </p>
+            ) : null}
+
             <button type="submit" className="btn">
               Registrarse
             </button>
           </form>
-  
+
           <p>
             ¿Ya tienes cuenta?{' '}
             <a className="btn btn--outline" href="#login">
