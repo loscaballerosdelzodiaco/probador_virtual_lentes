@@ -2,8 +2,18 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
+import { getCurrentSession } from '../services/authService'
 import { getAvailableProducts } from '../services/productService'
 import type { ProductoDisponible } from '../services/productService'
+import { fakeSession } from './authMocks'
+
+vi.mock('../services/authService', () => ({
+  SESSION_ERROR_MESSAGE:
+    'No pudimos validar tu sesión. Inténtalo de nuevo en unos momentos.',
+  getCurrentSession: vi.fn(),
+  subscribeToAuthChanges: vi.fn(() => () => {}),
+  signOut: vi.fn(),
+}))
 
 vi.mock('../services/productService', () => ({
   CATALOG_LOAD_ERROR_MESSAGE:
@@ -40,6 +50,7 @@ describe('filtros del catálogo por categoría', () => {
   beforeEach(() => {
     vi.mocked(getAvailableProducts).mockReset()
     vi.mocked(getAvailableProducts).mockResolvedValue(catalog)
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
   })
 
   it('muestra todos los productos cuando no hay categoría seleccionada', async () => {

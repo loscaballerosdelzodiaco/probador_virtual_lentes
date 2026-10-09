@@ -153,10 +153,13 @@ a:hover { color: var(--color-accent-hover); }
 :focus-visible { outline: 2px solid var(--color-secondary); outline-offset: 2px; }
 
 /* ---------- Layout ---------- */
-.section { padding: var(--section-padding); background: var(--color-bg); }
+.section { padding: 28px 0; background: var(--color-bg); }
 .section--alt { background: var(--color-bg-alt); }
-.row { width: var(--container-width); max-width: var(--container-max); margin: 0 auto; padding: var(--row-padding); }
-@media (max-width: 980px) { .section { padding: 50px 0; } }
+.row { width: min(92%, var(--container-max)); max-width: var(--container-max); margin: 0 auto; padding: var(--space-4) 0; }
+@media (min-width: 768px) {
+  .section { padding: var(--section-padding); }
+  .row { width: var(--container-width); padding: var(--row-padding); }
+}
 .prose { max-width: var(--content-width); margin: 0 auto; }
 
 .container {
@@ -244,6 +247,12 @@ a:hover { color: var(--color-accent-hover); }
   color: var(--color-text-on-accent);
 }
 .btn:active { transform: translateY(1px); }
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
 .btn--outline { background: transparent; color: var(--color-accent); }
 .btn--outline:hover { background: var(--color-hover-tint); color: var(--color-accent); }
 .btn--flat {                       /* CTA rectangular del header */

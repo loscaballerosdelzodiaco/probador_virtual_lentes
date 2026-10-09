@@ -1,277 +1,167 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ProductCard } from './components/ProductCard'
-import { type Product } from './data/products'
-import { catalogImageSrc } from './lib/catalogImage'
+import { useEffect, useState } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import {
-  matchesCategoryFilter,
-  type CategoryFilter,
-} from './lib/categoryFilter'
-import { ProductDetailPage } from './pages/ProductDetailPage'
+  isCatalogRoute,
+  readAppRoute,
+  replaceLocation,
+  type AppRoute,
+} from './lib/appRoute'
+import { CatalogPage } from './pages/CatalogPage'
+import { LoginPendingPage } from './pages/LoginPendingPage'
+import { RegistroPage } from './pages/RegistroPage'
 import {
-  CATALOG_LOAD_ERROR_MESSAGE,
-  getAvailableProducts,
-  type ProductoDisponible,
-} from './services/productService'
+  SESSION_ERROR_MESSAGE,
+  getCurrentSession,
+  signOut,
+  subscribeToAuthChanges,
+} from './services/authService'
 import './App.css'
 
-const PAGE_SIZE = 6
-
-function selectedProductIdFromHash(hash: string): number | null {
-  const value = hash.replace(/^#/, '')
-  if (!value || value === 'catalogo') return null
-  const id = Number(value)
-  return Number.isInteger(id) && id > 0 ? id : null
-}
-
-function sortProducts(list: Product[], order: string) {
-  const sorted = [...list]
-  if (order === 'price-asc') {
-    sorted.sort((a, b) => a.price - b.price)
-  } else if (order === 'price-desc') {
-    sorted.sort((a, b) => b.price - a.price)
-  } else if (order === 'name') {
-    sorted.sort((a, b) => a.name.localeCompare(b.name, 'es'))
-  }
-  return sorted
-}
-
-function toCatalogProduct(product: ProductoDisponible): Product {
-  return {
-    id: String(product.id),
-    name: product.nombre ?? 'Sin nombre',
-    price: product.precio ?? 0,
-    image: catalogImageSrc(product.url_imagen),
-    category: product.categoria,
-  }
-}
-
 function App() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [filter, setFilter] = useState<CategoryFilter>('all')
-  const [order, setOrder] = useState('menu_order')
-  const [page, setPage] = useState(1)
-  const [selectedProductId, setSelectedProductId] = useState<number | null>(() =>
-    selectedProductIdFromHash(window.location.hash),
-  )
+  const [route, setRoute] = useState<AppRoute>(() => readAppRoute())
+  const [session, setSession] = useState<Session | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
-    const onHashChange = () => {
-      setSelectedProductId(selectedProductIdFromHash(window.location.hash))
+    const syncRoute = () => setRoute(readAppRoute())
+    window.addEventListener('popstate', syncRoute)
+    window.addEventListener('hashchange', syncRoute)
+    return () => {
+      window.removeEventListener('popstate', syncRoute)
+      window.removeEventListener('hashchange', syncRoute)
     }
-
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
   useEffect(() => {
     let active = true
 
-    getAvailableProducts()
-      .then((rows) => {
+    getCurrentSession()
+      .then((current) => {
         if (!active) return
-        setProducts(rows.map(toCatalogProduct))
-        setLoadError(null)
+        setSession(current)
+        setAuthError(null)
       })
       .catch((error: unknown) => {
         if (!active) return
         console.error(error)
-        setProducts([])
-        setLoadError(CATALOG_LOAD_ERROR_MESSAGE)
+        setSession(null)
+        setAuthError(SESSION_ERROR_MESSAGE)
       })
       .finally(() => {
-        if (!active) return
-        setIsLoading(false)
+        if (active) setAuthLoading(false)
       })
+
+    const unsubscribe = subscribeToAuthChanges((current) => {
+      if (!active) return
+      setSession(current)
+      if (current) setAuthError(null)
+    })
 
     return () => {
       active = false
+      unsubscribe()
     }
   }, [])
 
-  const filteredProducts = useMemo(
-    () =>
-      products.filter((product) =>
-        matchesCategoryFilter(product.category, filter),
-      ),
-    [filter, products],
-  )
+  useEffect(() => {
+    if (authLoading) return
 
-  const orderedProducts = useMemo(
-    () => sortProducts(filteredProducts, order),
-    [filteredProducts, order],
-  )
-  const pageCount = Math.max(1, Math.ceil(orderedProducts.length / PAGE_SIZE))
-  const currentPage = Math.min(page, pageCount)
-  const pageItems = orderedProducts.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
-  )
-  const rangeStart = orderedProducts.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1
-  const rangeEnd = Math.min(currentPage * PAGE_SIZE, orderedProducts.length)
+    if ((!session || authError) && isCatalogRoute(route)) {
+      replaceLocation('/')
+      return
+    }
+
+    if (session && !authError && route.name === 'registro') {
+      replaceLocation('/catalogo')
+    }
+  }, [authError, authLoading, route, session])
+
+  async function handleSignOut() {
+    try {
+      await signOut()
+      setSession(null)
+      replaceLocation('/')
+    } catch (error: unknown) {
+      console.error(error)
+      setSession(null)
+      setAuthError(SESSION_ERROR_MESSAGE)
+      replaceLocation('/')
+    }
+  }
+
+  const canOpenCatalog = Boolean(session) && !authError && !authLoading
 
   return (
     <>
       <header className="site-header">
         <div className="site-header__row">
-          <a href="#catalogo" className="site-logo">
+          <a href={canOpenCatalog ? '/catalogo' : '/'} className="site-logo">
             FUDEM
           </a>
           <nav className="nav" aria-label="Principal">
             <ul>
-              <li>
-                <a href="#catalogo">Inicio</a>
+              <li className={!canOpenCatalog ? 'is-active' : undefined}>
+                <a href="/" aria-current={!canOpenCatalog ? 'page' : undefined}>
+                  Registro
+                </a>
               </li>
-              <li className="is-active">
-                <a href="#catalogo" aria-current="page">
+              <li className={canOpenCatalog ? 'is-active' : undefined}>
+                <a
+                  href="/catalogo"
+                  aria-current={canOpenCatalog ? 'page' : undefined}
+                >
                   Catálogo
                 </a>
               </li>
-              <li>
-                <a href="#catalogo">Probador virtual</a>
-              </li>
             </ul>
           </nav>
-          <a className="btn btn--flat" href="#catalogo">
-            Agendar cita
-          </a>
+          {canOpenCatalog ? (
+            <button type="button" className="btn btn--outline" onClick={() => void handleSignOut()}>
+              Cerrar sesión
+            </button>
+          ) : (
+            <a className="btn btn--flat" href="/login">
+              Iniciar sesión
+            </a>
+          )}
         </div>
       </header>
 
       <main>
-        {selectedProductId ? (
-          <ProductDetailPage productId={selectedProductId} />
-        ) : (
-        <section id="catalogo" className="section">
-          <div className="row">
-            <nav className="breadcrumb" aria-label="Miga de pan">
-              <a href="#catalogo">Inicio</a> / Catálogo
-            </nav>
-            <h1>Catálogo de lentes</h1>
-            <p>
-              Explora monturas disponibles y elige el modelo que mejor se adapte a
-              tu estilo. El probador virtual se integrará en un siguiente paso.
-            </p>
-            <div className="catalog-filters">
-              <button
-                type="button"
-                className={filter === 'all' ? 'btn--filter is-active' : 'btn--filter'}
-                onClick={() => {
-                  setFilter('all')
-                  setPage(1)
-                }}
-              >
-                Todos
-              </button>
-              <button
-                type="button"
-                className={filter === 'hombre' ? 'btn--filter is-active' : 'btn--filter'}
-                onClick={() => {
-                  setFilter('hombre')
-                  setPage(1)
-                }}
-              >
-                Hombre
-              </button>
-              <button
-                type="button"
-                className={filter === 'mujer' ? 'btn--filter is-active' : 'btn--filter'}
-                onClick={() => {
-                  setFilter('mujer')
-                  setPage(1)
-                }}
-              >
-                Mujer
-              </button>
+        {authLoading ? (
+          <section className="section">
+            <div className="container prose">
+              <p role="status">Comprobando sesión…</p>
             </div>
+          </section>
+        ) : null}
 
-            {isLoading ? <p role="status">Cargando productos…</p> : null}
-            {loadError ? (
+        {!authLoading && authError ? (
+          <section className="section">
+            <div className="container prose">
               <p className="notice notice--error" role="alert">
-                {loadError}
+                {authError}
               </p>
-            ) : null}
-
-            {!isLoading && !loadError ? (
-            <div className="catalog-toolbar">
-              <p className="result-count">
-                Mostrando {rangeStart}–{rangeEnd} de {orderedProducts.length} resultados
-              </p>
-              <label>
-                Ordenar
-                <select
-                  className="select-order"
-                  value={order}
-                  onChange={(event) => {
-                    setOrder(event.target.value)
-                    setPage(1)
-                  }}
-                >
-                  <option value="menu_order">Orden predeterminado</option>
-                  <option value="price-asc">Precio: menor a mayor</option>
-                  <option value="price-desc">Precio: mayor a menor</option>
-                  <option value="name">Nombre</option>
-                </select>
-              </label>
+              <RegistroPage />
             </div>
-            ) : null}
+          </section>
+        ) : null}
 
-            {!isLoading && !loadError && products.length === 0 ? (
-              <p className="notice" role="status">
-                Actualmente no hay productos disponibles.
-              </p>
-            ) : null}
+        {!authLoading && !authError && !session && route.name === 'login' ? (
+          <LoginPendingPage />
+        ) : null}
 
-            {!isLoading &&
-            !loadError &&
-            products.length > 0 &&
-            orderedProducts.length === 0 ? (
-              <p className="notice" role="status">
-                No hay monturas en esta categoría.
-              </p>
-            ) : null}
+        {!authLoading && !authError && !session && route.name !== 'login' ? (
+          <RegistroPage
+            onRegisteredWithSession={(nextSession) => {
+              setSession(nextSession)
+              replaceLocation('/catalogo')
+            }}
+          />
+        ) : null}
 
-            {orderedProducts.length > 0 ? (
-              <>
-                <ul className="grid-products">
-                  {pageItems.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </ul>
-
-                <nav className="pagination" aria-label="Paginación">
-                  <ul>
-                    {Array.from({ length: pageCount }, (_, index) => {
-                      const pageNumber = index + 1
-                      const isCurrent = pageNumber === currentPage
-                      return (
-                        <li key={pageNumber}>
-                          {isCurrent ? (
-                            <span className="is-current" aria-current="page">
-                              {pageNumber}
-                            </span>
-                          ) : (
-                            <a
-                              href="#catalogo"
-                              onClick={(event) => {
-                                event.preventDefault()
-                                setPage(pageNumber)
-                              }}
-                            >
-                              {pageNumber}
-                            </a>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </nav>
-              </>
-            ) : null}
-          </div>
-        </section>
-        )}
+        {!authLoading && canOpenCatalog ? <CatalogPage /> : null}
       </main>
 
       <footer className="site-footer">
@@ -279,30 +169,30 @@ function App() {
           <div className="grid-footer">
             <div>
               <h4>FUDEM</h4>
-              <p>Atención visual accesible y un catálogo para probar monturas con confianza.</p>
+              <p>Atención visual accesible y un catálogo para probar aros con confianza.</p>
             </div>
             <div>
               <h4>Catálogo</h4>
               <p>
-                <a href="#catalogo">Ver lentes</a>
+                <a href="/catalogo">Ver lentes</a>
               </p>
             </div>
             <div>
-              <h4>Clínica</h4>
+              <h4>Cuenta</h4>
               <p>
-                <a href="#catalogo">Agendar cita</a>
+                <a href="/">Registrarse</a>
               </p>
             </div>
             <div>
               <h4>Ayuda</h4>
               <p>
-                <a href="#catalogo">Preguntas frecuentes</a>
+                <a href="/login">Iniciar sesión</a>
               </p>
             </div>
             <div>
               <h4>Contacto</h4>
               <p>
-                <a className="btn btn--cta" href="#catalogo">
+                <a className="btn btn--cta" href="/">
                   Escribir
                 </a>
               </p>

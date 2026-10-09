@@ -1,74 +1,95 @@
 import { useState, type FormEvent } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { validateRegistro } from '../lib/registroValidation'
 import {
   REGISTRO_ERROR_MESSAGE,
   registrarUsuario,
 } from '../services/registroService'
 
-export function RegistroPage() {
-    const [errorMessages, setErrorMessages] = useState<string[]>([])
-    const [isRegistered, setIsRegistered] = useState(false)
+type RegistroPageProps = {
+  onRegisteredWithSession?: (session: Session) => void
+}
 
-    async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-      event.preventDefault()
-      const form = event.currentTarget
-      const data = new FormData(form)
-      const field = (name: string) => String(data.get(name) ?? '').trim()
+export function RegistroPage({ onRegisteredWithSession }: RegistroPageProps) {
+  const [errorMessages, setErrorMessages] = useState<string[]>([])
+  const [isRegistered, setIsRegistered] = useState(false)
+  const [needsLogin, setNeedsLogin] = useState(false)
 
-      const usuario = {
-        dui: field('dui'),
-        nombre: field('nombre'),
-        apellido: field('apellido'),
-        fecha_nacimiento: field('fecha_nacimiento'),
-        correo: field('correo'),
-        telefono: field('telefono'),
-        contrasena: String(data.get('contrasena') ?? ''),
-      }
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const data = new FormData(form)
+    const field = (name: string) => String(data.get(name) ?? '').trim()
 
-      setIsRegistered(false)
-
-      const messages = Object.values(validateRegistro(usuario))
-      if (messages.length > 0) {
-        setErrorMessages(messages)
-        return
-      }
-      setErrorMessages([])
-
-      try {
-        await registrarUsuario(usuario)
-        setIsRegistered(true)
-        form.reset()
-      } catch (error: unknown) {
-        console.error(error)
-        setErrorMessages([
-          error instanceof Error ? error.message : REGISTRO_ERROR_MESSAGE,
-        ])
-      }
+    const usuario = {
+      dui: field('dui'),
+      nombre: field('nombre'),
+      apellido: field('apellido'),
+      fecha_nacimiento: field('fecha_nacimiento'),
+      correo: field('correo'),
+      telefono: field('telefono'),
+      contrasena: String(data.get('contrasena') ?? ''),
     }
 
-    return (
-      <section id="registro" className="section">
-        <div className="container prose">
-          <h1>Crear cuenta</h1>
-          <p>Completa tus datos para registrarte en la plataforma.</p>
+    setIsRegistered(false)
+    setNeedsLogin(false)
 
-          <form onSubmit={handleSubmit} noValidate>
-            <p>
-              <label htmlFor="registro-dui">DUI</label>
-              <br />
-              <input
-                id="registro-dui"
-                name="dui"
-                type="text"
-                inputMode="numeric"
-                placeholder="00000000-0"
-                required
-              />
-            </p>
+    const messages = Object.values(validateRegistro(usuario))
+    if (messages.length > 0) {
+      setErrorMessages(messages)
+      return
+    }
+    setErrorMessages([])
 
-            <p>
+    try {
+      const { session } = await registrarUsuario(usuario)
+      setIsRegistered(true)
+      form.reset()
+      if (session) {
+        onRegisteredWithSession?.(session)
+      } else {
+        setNeedsLogin(true)
+      }
+    } catch (error: unknown) {
+      console.error(error)
+      setErrorMessages([
+        error instanceof Error ? error.message : REGISTRO_ERROR_MESSAGE,
+      ])
+    }
+  }
+
+  return (
+    <section id="registro" className="auth-screen">
+      <div className="auth-screen__visual" aria-hidden="true">
+        <div className="auth-screen__orb auth-screen__orb--one"></div>
+        <div className="auth-screen__orb auth-screen__orb--two"></div>
+        <p className="auth-screen__brand">FUDEM</p>
+        <p className="auth-screen__tagline">
+          Crea tu cuenta y explora aros pensadas para tu estilo.
+        </p>
+      </div>
+
+      <div className="auth-screen__panel">
+        <p className="auth-screen__kicker">Bienvenida</p>
+        <h1>Crear cuenta</h1>
+        <p>Completa tus datos para registrarte en la plataforma.</p>
+
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <div className="auth-form__field">
+            <label htmlFor="registro-dui">DUI</label>
+            <input
+              id="registro-dui"
+              name="dui"
+              type="text"
+              inputMode="numeric"
+              placeholder="00000000-0"
+              required
+            />
+          </div>
+
+          <div className="auth-form__row">
+            <div className="auth-form__field">
               <label htmlFor="registro-nombre">Nombre</label>
-              <br />
               <input
                 id="registro-nombre"
                 name="nombre"
@@ -76,11 +97,9 @@ export function RegistroPage() {
                 autoComplete="name"
                 required
               />
-            </p>
-
-            <p>
+            </div>
+            <div className="auth-form__field">
               <label htmlFor="registro-apellido">Apellido</label>
-              <br />
               <input
                 id="registro-apellido"
                 name="apellido"
@@ -88,80 +107,79 @@ export function RegistroPage() {
                 autoComplete="family-name"
                 required
               />
+            </div>
+          </div>
+
+          <div className="auth-form__field">
+            <label htmlFor="registro-fecha-nacimiento">Fecha de nacimiento</label>
+            <input
+              id="registro-fecha-nacimiento"
+              name="fecha_nacimiento"
+              type="date"
+              required
+            />
+          </div>
+
+          <div className="auth-form__field">
+            <label htmlFor="registro-correo">Correo / Usuario</label>
+            <input
+              id="registro-correo"
+              name="correo"
+              type="email"
+              autoComplete="email"
+              required
+            />
+          </div>
+
+          <div className="auth-form__field">
+            <label htmlFor="registro-telefono">Teléfono</label>
+            <input
+              id="registro-telefono"
+              name="telefono"
+              type="tel"
+              autoComplete="tel"
+              required
+            />
+          </div>
+
+          <div className="auth-form__field">
+            <label htmlFor="registro-contrasena">Contraseña</label>
+            <input
+              id="registro-contrasena"
+              name="contrasena"
+              type="password"
+              autoComplete="new-password"
+              required
+            />
+          </div>
+
+          {errorMessages.length > 0 ? (
+            <ul className="notice notice--error" role="alert">
+              {errorMessages.map((message) => (
+                <li key={message}>{message}</li>
+              ))}
+            </ul>
+          ) : null}
+          {isRegistered && !needsLogin ? (
+            <p className="notice notice--success" role="status">
+              Cuenta creada correctamente.
             </p>
-
-            <p>
-              <label htmlFor="registro-fecha-nacimiento">Fecha de nacimiento</label>
-              <br />
-              <input
-                id="registro-fecha-nacimiento"
-                name="fecha_nacimiento"
-                type="date"
-                required
-              />
+          ) : null}
+          {needsLogin ? (
+            <p className="notice" role="status">
+              Cuenta creada. Inicia sesión para acceder al catálogo.
             </p>
+          ) : null}
 
-            <p>
-              <label htmlFor="registro-correo">Correo / Usuario</label>
-              <br />
-              <input
-                id="registro-correo"
-                name="correo"
-                type="email"
-                autoComplete="email"
-                required
-              />
-            </p>
+          <button type="submit" className="btn auth-form__submit">
+            Registrarse
+          </button>
+        </form>
 
-            <p>
-              <label htmlFor="registro-telefono">Teléfono</label>
-              <br />
-              <input
-                id="registro-telefono"
-                name="telefono"
-                type="tel"
-                autoComplete="tel"
-                required
-              />
-            </p>
-
-            <p>
-              <label htmlFor="registro-contrasena">Contraseña</label>
-              <br />
-              <input
-                id="registro-contrasena"
-                name="contrasena"
-                type="password"
-                autoComplete="new-password"
-                required
-              />
-            </p>
-
-            {errorMessages.length > 0 ? (
-              <ul className="notice notice--error" role="alert">
-                {errorMessages.map((message) => (
-                  <li key={message}>{message}</li>
-                ))}
-              </ul>
-            ) : null}
-            {isRegistered ? (
-              <p className="notice notice--success" role="status">
-                Cuenta creada correctamente.
-              </p>
-            ) : null}
-
-            <button type="submit" className="btn">
-              Registrarse
-            </button>
-          </form>
-
-          <p>
-            ¿Ya tienes cuenta?{' '}
-            <a className="btn btn--outline" href="#login">
-              Iniciar sesión
-            </a>
-          </p>
-        </div>
-      </section>
-    )
-  }
+        <p className="auth-screen__switch">
+          ¿Ya tienes cuenta? <a href="/login">Iniciar sesión</a>
+        </p>
+      </div>
+    </section>
+  )
+}
