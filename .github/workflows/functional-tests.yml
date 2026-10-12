@@ -1,0 +1,75 @@
+name: Functional tests
+
+on:
+  push:
+    branches:
+      - develop
+      - 'sprint/**'
+      - 'sprint-*'
+      - 'Sprint*'
+  pull_request:
+    branches:
+      - main
+      - develop
+      - 'sprint/**'
+      - 'sprint-*'
+      - 'Sprint*'
+
+concurrency:
+  group: functional-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: fudem-app
+
+env:
+  VITE_SUPABASE_URL: https://example.supabase.co
+  VITE_SUPABASE_ANON_KEY: test-anon-key
+
+jobs:
+  unit-and-integration:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: fudem-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: fudem-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
