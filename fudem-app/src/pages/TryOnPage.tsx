@@ -25,6 +25,8 @@ export type TryOnPageProps = {
   /** T7: ajuste manual (modo foto) */
   adjust?: ManualAdjustValues
   onAdjustChange?: (next: ManualAdjustValues) => void
+  /** T4: cada frame listo de la cámara (T5/T6 enganchan detección y dibujo aquí) */
+  onFrame?: (video: HTMLVideoElement) => void
   /** T4: recibe el archivo elegido en "Subir fotografía" */
   onUploadPhoto?: (file: File) => void
   /** T9: captura y descarga */
@@ -51,6 +53,7 @@ export function TryOnPage({
   onSelectModel = noop,
   adjust = DEFAULT_ADJUST,
   onAdjustChange = noop,
+  onFrame = noop,
   onUploadPhoto = noop,
   onCapture = noop,
   canCapture = false,
@@ -61,10 +64,15 @@ export function TryOnPage({
   const [mode, setMode] = useState<TryOnMode>('camera')
   const [cameraError, setCameraError] = useState<TryOnErrorKey | null>(null)
   const [cameraAttempt, setCameraAttempt] = useState(0)
+  const [cameraReady, setCameraReady] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const onFrameRef = useRef(onFrame)
+  const frameIdRef = useRef(0)
+
+  onFrameRef.current = onFrame
 
   useEffect(() => {
     const onHashChange = () => setHashId(readProductIdFromHash())
@@ -72,9 +80,12 @@ export function TryOnPage({
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
-  // T3: pedir la cámara cuando el modo es "camera"
+  // T3/T4: pedir la cámara cuando el modo es "camera"
   useEffect(() => {
-    if (mode !== 'camera') return
+    if (mode !== 'camera') {
+      setCameraReady(false)
+      return
+    }
 
     const video = videoRef.current
     let cancelled = false
@@ -89,7 +100,7 @@ export function TryOnPage({
       }
 
       if (!result.ok) {
-        // 'denied' y 'unavailable' muestran el mismo mensaje (E2)
+        setCameraReady(false)
         setCameraError('cameraUnavailable')
         return
       }
@@ -97,16 +108,55 @@ export function TryOnPage({
       activeStream = result.stream
       if (video) {
         video.srcObject = result.stream
-        await video.play().catch(() => undefined)
+        video.muted = true
+        video.playsInline = true
+        video.autoplay = true
+        try {
+          await video.play()
+        } catch {
+          /* autoplay o jsdom: el atributo autoPlay sigue mostrando el stream */
+        }
       }
+      setCameraReady(true)
     })()
 
     return () => {
       cancelled = true
+      setCameraReady(false)
       stopCamera(activeStream)
       if (video) video.srcObject = null
     }
   }, [mode, cameraAttempt])
+
+  // T4: exponer frames listos; T5/T6 pueden usar onFrame sin tocar este bucle
+  useEffect(() => {
+    if (mode !== 'camera' || !cameraReady) return
+
+    let running = true
+
+    const tick = () => {
+      if (!running) return
+      const video = videoRef.current
+      const hasFrame =
+        video !== null &&
+        video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        video.videoWidth > 0
+
+      if (hasFrame) {
+        onFrameRef.current(video)
+      }
+
+      frameIdRef.current = window.requestAnimationFrame(tick)
+    }
+
+    frameIdRef.current = window.requestAnimationFrame(tick)
+
+    return () => {
+      running = false
+      window.cancelAnimationFrame(frameIdRef.current)
+      frameIdRef.current = 0
+    }
+  }, [mode, cameraReady])
 
   const currentProductId = productId !== undefined ? productId : hashId
   const selectedId = selectedModelId ?? currentProductId
