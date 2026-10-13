@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
-  isCatalogRoute,
+  isProtectedRoute,
   readAppRoute,
   replaceLocation,
   type AppRoute,
@@ -9,6 +9,7 @@ import {
 import { CatalogPage } from './pages/CatalogPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegistroPage } from './pages/RegistroPage'
+import { TryOnPage } from './pages/TryOnPage'
 import {
   SESSION_ERROR_MESSAGE,
   getCurrentSession,
@@ -67,7 +68,7 @@ function App() {
   useEffect(() => {
     if (authLoading) return
 
-    if ((!session || authError) && isCatalogRoute(route)) {
+    if ((!session || authError) && isProtectedRoute(route)) {
       replaceLocation('/login')
       return
     }
@@ -166,7 +167,13 @@ function App() {
           />
         ) : null}
 
-        {!authLoading && canOpenCatalog ? <CatalogPage /> : null}
+        {!authLoading && canOpenCatalog && route.name === 'probador' ? (
+          <TryOnPage productId={route.productId} />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name !== 'probador' ? (
+          <CatalogPage />
+        ) : null}
       </main>
 
       <footer className="site-footer">
