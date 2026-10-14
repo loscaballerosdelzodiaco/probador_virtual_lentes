@@ -1,3 +1,6 @@
+import { detectFace } from './faceDetector'
+import type { FaceData } from './types'
+
 /** Límite de la foto del probador. El archivo no sale del navegador. */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
@@ -9,6 +12,10 @@ export type ImageFileError = 'format' | 'size'
 export type ImageValidationResult =
   | { valid: true; image: HTMLImageElement }
   | { valid: false; error: ImageFileError }
+
+export type FaceImageValidationResult =
+  | { valid: true; face: FaceData }
+  | { valid: false }
 
 function extensionOf(fileName: string): string {
   const dot = fileName.lastIndexOf('.')
@@ -44,4 +51,21 @@ export async function validateImageFile(file: File): Promise<ImageValidationResu
   if (file.size > MAX_IMAGE_BYTES) return { valid: false, error: 'size' }
   const image = await loadImage(file)
   return { valid: true, image }
+}
+
+/**
+ * Comprueba si la foto tiene un rostro usable.
+ * Reutiliza `detectFace` (T5) una sola vez: el `FaceData` sirve para T6.
+ * Si el detector falla o no hay cara, `valid` es false (E1).
+ */
+export async function validateFaceInImage(
+  image: HTMLImageElement,
+): Promise<FaceImageValidationResult> {
+  try {
+    const face = await detectFace(image)
+    if (!face) return { valid: false }
+    return { valid: true, face }
+  } catch {
+    return { valid: false }
+  }
 }

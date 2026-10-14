@@ -8,9 +8,13 @@ import {
   type ModelSelectorProps,
 } from '../components/ModelSelector'
 import { requestCameraAccess, stopCamera } from '../lib/tryOn/cameraService'
-import { validateImageFile } from '../lib/tryOn/imageValidation'
+import {
+  validateFaceInImage,
+  validateImageFile,
+} from '../lib/tryOn/imageValidation'
+import { computeLensTransform, drawLens } from '../lib/tryOn/lensTransform'
 import { TRYON_MESSAGES } from '../lib/tryOn/messages'
-import type { TryOnModel } from '../lib/tryOn/types'
+import type { FaceData, LensAnchor, TryOnModel } from '../lib/tryOn/types'
 import './TryOnPage.css'
 
 export type TryOnMode = 'camera' | 'photo'
@@ -30,6 +34,10 @@ export type TryOnPageProps = {
   onFrame?: (video: HTMLVideoElement) => void
   /** T4: recibe el archivo elegido en "Subir fotografía" */
   onUploadPhoto?: (file: File) => void
+  /** T8: FaceData de la foto (una sola detección) para T6 */
+  onPhotoFace?: (face: FaceData, image: HTMLImageElement) => void
+  lensImage?: HTMLImageElement | null
+  lensAnchor?: LensAnchor | null
   /** T9: captura y descarga */
   onCapture?: () => void
   canCapture?: boolean
@@ -40,6 +48,31 @@ export type TryOnPageProps = {
 
 const DEFAULT_ADJUST: ManualAdjustValues = { dx: 0, dy: 0, scale: 1, rotation: 0 }
 const noop = () => {}
+
+function drawPhotoLensOnCanvas(
+  canvas: HTMLCanvasElement,
+  photo: HTMLImageElement,
+  face: FaceData,
+  lensImage: HTMLImageElement,
+  lensAnchor: LensAnchor,
+  adjust: ManualAdjustValues,
+) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const width = photo.naturalWidth || photo.width
+  const height = photo.naturalHeight || photo.height
+  if (width <= 0 || height <= 0) return
+  canvas.width = width
+  canvas.height = height
+  ctx.clearRect(0, 0, width, height)
+  ctx.drawImage(photo, 0, 0, width, height)
+  drawLens(
+    ctx,
+    lensImage,
+    lensAnchor,
+    computeLensTransform(face, lensAnchor, adjust),
+  )
+}
 
 function readProductIdFromHash(): number | null {
   const raw = window.location.hash.replace(/^#/, '').trim()
@@ -56,6 +89,9 @@ export function TryOnPage({
   onAdjustChange = noop,
   onFrame = noop,
   onUploadPhoto = noop,
+  onPhotoFace = noop,
+  lensImage = null,
+  lensAnchor = null,
   onCapture = noop,
   canCapture = false,
   errorKey = null,
@@ -67,6 +103,7 @@ export function TryOnPage({
   const [cameraAttempt, setCameraAttempt] = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
+  const [photoFace, setPhotoFace] = useState<FaceData | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -168,6 +205,22 @@ export function TryOnPage({
     }
   }, [mode, cameraReady])
 
+  useEffect(() => {
+    if (mode !== 'photo' || !userPhoto || !photoFace || !lensImage || !lensAnchor) {
+      return
+    }
+    const canvas = canvasRef.current
+    if (!canvas) return
+    drawPhotoLensOnCanvas(
+      canvas,
+      userPhoto,
+      photoFace,
+      lensImage,
+      lensAnchor,
+      adjust,
+    )
+  }, [mode, userPhoto, photoFace, lensImage, lensAnchor, adjust])
+
   const currentProductId = productId !== undefined ? productId : hashId
   const selectedId = selectedModelId ?? currentProductId
 
@@ -210,10 +263,30 @@ export function TryOnPage({
         setCameraError(result.error === 'format' ? 'unsupportedFormat' : 'invalidImage')
         return
       }
+
+      const faceResult = await validateFaceInImage(result.image)
+      if (seq !== uploadSeqRef.current) return
+      if (!faceResult.valid) {
+        setCameraError('invalidImage')
+        return
+      }
+
       setCameraError(null)
       rememberPhoto(result.image)
+      setPhotoFace(faceResult.face)
       setMode('photo')
       onUploadPhoto(file)
+      onPhotoFace(faceResult.face, result.image)
+      if (canvasRef.current && lensImage && lensAnchor) {
+        drawPhotoLensOnCanvas(
+          canvasRef.current,
+          result.image,
+          faceResult.face,
+          lensImage,
+          lensAnchor,
+          adjust,
+        )
+      }
     } catch {
       if (seq !== uploadSeqRef.current) return
       setCameraError('invalidImage')
