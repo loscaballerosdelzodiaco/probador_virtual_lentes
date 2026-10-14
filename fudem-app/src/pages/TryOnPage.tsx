@@ -8,6 +8,7 @@ import {
   type ModelSelectorProps,
 } from '../components/ModelSelector'
 import { requestCameraAccess, stopCamera } from '../lib/tryOn/cameraService'
+import { validateImageFile } from '../lib/tryOn/imageValidation'
 import { TRYON_MESSAGES } from '../lib/tryOn/messages'
 import type { TryOnModel } from '../lib/tryOn/types'
 import './TryOnPage.css'
@@ -65,12 +66,15 @@ export function TryOnPage({
   const [cameraError, setCameraError] = useState<TryOnErrorKey | null>(null)
   const [cameraAttempt, setCameraAttempt] = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
+  const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onFrameRef = useRef(onFrame)
   const frameIdRef = useRef(0)
+  const uploadSeqRef = useRef(0)
+  const photoUrlRef = useRef<string | null>(null)
 
   onFrameRef.current = onFrame
 
@@ -78,6 +82,12 @@ export function TryOnPage({
     const onHashChange = () => setHashId(readProductIdFromHash())
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (photoUrlRef.current) URL.revokeObjectURL(photoUrlRef.current)
+    }
   }, [])
 
   // T3/T4: pedir la cámara cuando el modo es "camera"
@@ -162,7 +172,7 @@ export function TryOnPage({
   const selectedId = selectedModelId ?? currentProductId
 
   const visibleError = errorKey ?? cameraError
-  const cameraFailed = mode === 'camera' && cameraError !== null
+  const cameraFailed = mode === 'camera' && cameraError === 'cameraUnavailable'
 
   function selectMode(next: TryOnMode) {
     setCameraError(null)
@@ -179,10 +189,35 @@ export function TryOnPage({
     setCameraAttempt((n) => n + 1)
   }
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+  function rememberPhoto(image: HTMLImageElement) {
+    if (photoUrlRef.current && photoUrlRef.current !== image.src) {
+      URL.revokeObjectURL(photoUrlRef.current)
+    }
+    photoUrlRef.current = image.src.startsWith('blob:') ? image.src : null
+    setUserPhoto(image)
+  }
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = '' // permite elegir de nuevo el mismo archivo
-    if (file) onUploadPhoto(file)
+    if (!file) return
+
+    const seq = ++uploadSeqRef.current
+    try {
+      const result = await validateImageFile(file)
+      if (seq !== uploadSeqRef.current) return
+      if (!result.valid) {
+        setCameraError(result.error === 'format' ? 'unsupportedFormat' : 'invalidImage')
+        return
+      }
+      setCameraError(null)
+      rememberPhoto(result.image)
+      setMode('photo')
+      onUploadPhoto(file)
+    } catch {
+      if (seq !== uploadSeqRef.current) return
+      setCameraError('invalidImage')
+    }
   }
 
   return (
@@ -251,6 +286,14 @@ export function TryOnPage({
                 muted
                 hidden={mode !== 'camera'}
               />
+              {userPhoto ? (
+                <img
+                  className="try-on__photo"
+                  src={userPhoto.src}
+                  alt="Fotografía cargada para el probador"
+                  hidden={mode !== 'photo'}
+                />
+              ) : null}
               <canvas ref={canvasRef} className="try-on__canvas" />
             </div>
 

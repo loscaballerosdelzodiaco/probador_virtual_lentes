@@ -621,6 +621,7 @@ main {
 }
 
 .try-on__video,
+.try-on__photo,
 .try-on__canvas {
   position: absolute;
   inset: 0;
