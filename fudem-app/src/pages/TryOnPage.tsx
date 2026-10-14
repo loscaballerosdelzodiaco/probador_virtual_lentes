@@ -16,12 +16,13 @@ import {
 } from '../lib/tryOn/imageValidation'
 import { getLensAnchor } from '../lib/tryOn/lensAnchor'
 import { computeLensTransform, drawLens } from '../lib/tryOn/lensTransform'
-import { TRYON_MESSAGES } from '../lib/tryOn/messages'
+import { TRYON_MESSAGES, TRYON_STATUS_TEXT } from '../lib/tryOn/messages'
+import { getTryOnStatus, type TryOnErrorKey } from '../lib/tryOn/status'
 import type { FaceData, LensAnchor, TryOnModel } from '../lib/tryOn/types'
 import './TryOnPage.css'
 
 export type TryOnMode = 'camera' | 'photo'
-export type TryOnErrorKey = keyof typeof TRYON_MESSAGES
+export type { TryOnErrorKey }
 
 export type TryOnPageProps = {
   /** Si no se pasa, se lee de la ruta /probador#<idProducto> */
@@ -132,6 +133,7 @@ export function TryOnPage({
   const [cameraError, setCameraError] = useState<TryOnErrorKey | null>(null)
   const [cameraAttempt, setCameraAttempt] = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
+  const [photoLoading, setPhotoLoading] = useState(false)
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoFace, setPhotoFace] = useState<FaceData | null>(null)
   const [internalSelectedId, setInternalSelectedId] = useState<number | null>(null)
@@ -330,6 +332,14 @@ export function TryOnPage({
   }, [mode, userPhoto, photoFace, activeLensImage, activeLensAnchor, adjustValues])
 
   const visibleError = errorKey ?? cameraError
+  const status = getTryOnStatus({
+    mode,
+    cameraReady,
+    photoLoading,
+    hasPhoto: Boolean(userPhoto && photoFace),
+    cameraFace,
+    errorKey: visibleError,
+  })
   const cameraFailed = mode === 'camera' && cameraError === 'cameraUnavailable'
   const photoIsFrontal = Boolean(photoFace && isFaceFrontal(photoFace))
   const cameraFaceTurned = Boolean(cameraFace && !isFaceFrontal(cameraFace))
@@ -374,6 +384,7 @@ export function TryOnPage({
     if (!file) return
 
     const seq = ++uploadSeqRef.current
+    setPhotoLoading(true)
     try {
       const result = await validateImageFile(file)
       if (seq !== uploadSeqRef.current) return
@@ -414,6 +425,8 @@ export function TryOnPage({
     } catch {
       if (seq !== uploadSeqRef.current) return
       setCameraError('invalidImage')
+    } finally {
+      if (seq === uploadSeqRef.current) setPhotoLoading(false)
     }
   }
 
@@ -456,7 +469,7 @@ export function TryOnPage({
 
         {/* Espacio de mensajes (A2, E1, E2, E3) */}
         <div className="try-on__messages" aria-live="polite">
-          {visibleError ? (
+          {status === 'error' && visibleError ? (
             <p className="notice notice--error" role="alert">
               {TRYON_MESSAGES[visibleError]}{' '}
               {cameraFailed ? (
@@ -468,9 +481,19 @@ export function TryOnPage({
                 Cerrar
               </button>
             </p>
+          ) : status === 'faceNotDetected' ? (
+            <p className="notice" role="status">
+              {TRYON_MESSAGES.faceNotDetected}
+            </p>
           ) : faceHint ? (
             <p className="notice" role="status">
               {TRYON_MESSAGES[faceHint]}
+            </p>
+          ) : status === 'loading' ? (
+            <p className="notice">
+              {photoLoading
+                ? TRYON_STATUS_TEXT.loadingPhoto
+                : TRYON_STATUS_TEXT.loadingCamera}
             </p>
           ) : null}
         </div>
@@ -478,7 +501,7 @@ export function TryOnPage({
         <div className="try-on__layout">
           <div className="try-on__stage-wrap">
             {/* <video> con <canvas> encima */}
-            <div className="try-on__stage" data-mode={mode}>
+            <div className="try-on__stage" data-mode={mode} data-status={status}>
               <video
                 ref={videoRef}
                 className="try-on__video"
@@ -548,7 +571,7 @@ export function TryOnPage({
               <button
                 type="button"
                 className="btn try-on__capture-btn"
-                disabled={!canCapture || Boolean(visibleError)}
+                disabled={!canCapture || status === 'error'}
                 onClick={onCapture}
               >
                 Capturar resultado
