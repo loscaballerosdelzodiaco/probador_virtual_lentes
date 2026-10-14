@@ -10,6 +10,14 @@ vi.mock('../lib/tryOn/cameraService', () => ({
   stopCamera: vi.fn(),
 }))
 
+vi.mock('../lib/tryOn/faceDetector', () => ({
+  detectFace: vi.fn(async () => ({
+    leftEye: { x: 40, y: 50 },
+    rightEye: { x: 80, y: 50 },
+    yaw: 0,
+  })),
+}))
+
 function fakeStream() {
   return { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream
 }

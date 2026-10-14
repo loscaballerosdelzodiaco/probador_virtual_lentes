@@ -8,6 +8,7 @@ import { toTryOnModel } from '../lib/tryOn/models'
 import type { TryOnModel } from '../lib/tryOn/types'
 import { requestCameraAccess, stopCamera } from '../lib/tryOn/cameraService'
 import { drawLens } from '../lib/tryOn/lensTransform'
+import { TRYON_MESSAGES } from '../lib/tryOn/messages'
 import { TryOnPage } from '../pages/TryOnPage'
 
 vi.mock('../lib/tryOn/cameraService', () => ({
@@ -35,12 +36,14 @@ const models: TryOnModel[] = [
     nombre: 'AN7225',
     marca: 'Arnette',
     imageUrl: '/catalog/ARNETTEAN7225.webp',
+    overlayUrl: '/tryon/ARNETTEAN7225.webp',
   },
   {
     id: 2,
     nombre: '1432',
     marca: 'Boss',
     imageUrl: '/catalog/BOSS14322M2.webp',
+    overlayUrl: '/tryon/BOSS14322M2.webp',
   },
 ]
 
@@ -76,6 +79,16 @@ describe('brandFromCatalogFile', () => {
   })
 })
 
+describe('tryOnImageSrc', () => {
+  it('usa la misma foto en /tryon y no cambia el catálogo', async () => {
+    const { tryOnImageSrc, catalogImageSrc } = await import('../lib/catalogImage')
+    expect(tryOnImageSrc('ARNETTEAN7225.webp')).toBe('/tryon/ARNETTEAN7225.webp')
+    expect(tryOnImageSrc('folder/BOSS14322M2.webp')).toBe('/tryon/BOSS14322M2.webp')
+    expect(catalogImageSrc('ARNETTEAN7225.webp')).toBe('/catalog/ARNETTEAN7225.webp')
+    expect(tryOnImageSrc(null)).toBeNull()
+  })
+})
+
 describe('toTryOnModel', () => {
   it('arma miniatura, nombre y marca', () => {
     expect(
@@ -96,6 +109,7 @@ describe('toTryOnModel', () => {
       nombre: 'AN7225',
       marca: 'Arnette',
       imageUrl: '/catalog/ARNETTEAN7225.webp',
+      overlayUrl: '/tryon/ARNETTEAN7225.webp',
     })
   })
 })
@@ -153,19 +167,57 @@ describe('TryOnPage selección de modelo', () => {
 
     expect(document.querySelector('.try-on__lens-ghost img')).toHaveAttribute(
       'src',
-      models[0].imageUrl,
+      models[0].overlayUrl,
     )
 
     await userEvent.setup().click(screen.getByRole('button', { name: '1432, Boss' }))
 
     expect(document.querySelector('.try-on__lens-ghost img')).toHaveAttribute(
       'src',
-      models[1].imageUrl,
+      models[1].overlayUrl,
     )
     expect(screen.getByRole('button', { name: '1432, Boss' })).toHaveClass('is-selected')
     expect(video.srcObject).toBe(stream)
     expect(requestCameraAccess).toHaveBeenCalledTimes(cameraCalls)
     expect(stopCamera).toHaveBeenCalledTimes(stopCalls)
+  })
+
+  it('oculta el aro de cámara si la cara no está de frente', async () => {
+    let frameCallback: FrameRequestCallback | null = null
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      frameCallback = cb
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.mocked(detectFace).mockResolvedValue({
+      leftEye: { x: 40, y: 50 },
+      rightEye: { x: 80, y: 50 },
+      yaw: 0.8,
+    })
+    const stream = fakeStream()
+    vi.mocked(requestCameraAccess).mockResolvedValue({ ok: true, stream })
+
+    render(<TryOnPage models={models} />)
+    const video = document.querySelector('video') as HTMLVideoElement
+    await waitFor(() => {
+      expect(video.srcObject).toBe(stream)
+    })
+    Object.defineProperty(video, 'readyState', {
+      configurable: true,
+      get: () => HTMLMediaElement.HAVE_CURRENT_DATA,
+    })
+    Object.defineProperty(video, 'videoWidth', {
+      configurable: true,
+      get: () => 640,
+    })
+
+    await waitFor(() => {
+      expect(frameCallback).not.toBeNull()
+    })
+    frameCallback?.(0)
+
+    expect(await screen.findByText(TRYON_MESSAGES.faceTurned)).toBeInTheDocument()
+    expect(document.querySelector('.try-on__lens-ghost')).toBeNull()
   })
 
   it('conserva la foto cargada y dibuja el lente del modelo nuevo', async () => {

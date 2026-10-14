@@ -66,10 +66,19 @@ describe('faceDetector', () => {
     expect(face).toEqual({
       leftEye: { x: 400, y: 250 },
       rightEye: { x: 600, y: 250 },
+      yaw: 0,
     })
     const swapped = landmarksToFaceData(mesh({ x: 0.7, y: 0.4 }, { x: 0.3, y: 0.4 }), 100, 100)
     expect(swapped?.leftEye.x).toBeCloseTo(30)
     expect(swapped?.rightEye.x).toBeCloseTo(70)
+  })
+
+  it('calcula el yaw con el desplazamiento de la nariz respecto a los ojos', async () => {
+    const { landmarksToFaceData } = await import('../lib/tryOn/faceDetector')
+    const points = mesh({ x: 0.4, y: 0.5 }, { x: 0.6, y: 0.5 })
+    points[1] = { x: 0.56, y: 0.55 }
+    const face = landmarksToFaceData(points, 1000, 500)
+    expect(face?.yaw).toBeCloseTo(0.3)
   })
 
   it('usa las esquinas del ojo si el modelo no trae iris', async () => {
@@ -92,7 +101,7 @@ describe('faceDetector', () => {
     detect.mockReturnValue({ faceLandmarks: [mesh({ x: 0.25, y: 0.5 }, { x: 0.75, y: 0.5 })] })
     const { detectFace } = await import('../lib/tryOn/faceDetector')
     const face = await detectFace(fakeImage(400, 200))
-    expect(face).toEqual({ leftEye: { x: 100, y: 100 }, rightEye: { x: 300, y: 100 } })
+    expect(face).toEqual({ leftEye: { x: 100, y: 100 }, rightEye: { x: 300, y: 100 }, yaw: 0 })
   })
 
   it('devuelve null si no hay rostro', async () => {
@@ -107,7 +116,7 @@ describe('faceDetector', () => {
     const video = fakeVideo(640, 480)
     const face = await detectFace(video)
     await detectFace(video)
-    expect(face).toEqual({ leftEye: { x: 256, y: 240 }, rightEye: { x: 384, y: 240 } })
+    expect(face).toEqual({ leftEye: { x: 256, y: 240 }, rightEye: { x: 384, y: 240 }, yaw: 0 })
     expect(setOptions).toHaveBeenCalledWith({ runningMode: 'VIDEO' })
     const [t1, t2] = detectForVideo.mock.calls.map((call) => call[1] as number)
     expect(t2).toBeGreaterThan(t1)

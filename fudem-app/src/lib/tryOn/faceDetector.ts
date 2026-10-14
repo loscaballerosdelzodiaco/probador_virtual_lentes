@@ -13,6 +13,7 @@ const MODEL_URL: string =
   'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
 
 // Índices de la malla de MediaPipe (lados anatómicos del sujeto)
+const NOSE_TIP = 1
 const IRIS_CENTER_A = 468
 const IRIS_CENTER_B = 473
 const CORNERS_A: [number, number] = [33, 133]
@@ -101,11 +102,17 @@ export function landmarksToFaceData(
   const toPixels = (p: LandmarkXY): Point => ({ x: p.x * width, y: p.y * height })
   const pa = toPixels(a as LandmarkXY)
   const pb = toPixels(b as LandmarkXY)
+  const leftEye = pa.x <= pb.x ? pa : pb
+  const rightEye = pa.x <= pb.x ? pb : pa
+  const eyeDistance = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y)
 
-  // leftEye = el ojo con menor x en la fuente
-  return pa.x <= pb.x
-    ? { leftEye: pa, rightEye: pb }
-    : { leftEye: pb, rightEye: pa }
+  let yaw = 0
+  if (isFinitePoint(landmarks[NOSE_TIP]) && eyeDistance > 0) {
+    const nose = toPixels(landmarks[NOSE_TIP])
+    yaw = (nose.x - (leftEye.x + rightEye.x) / 2) / eyeDistance
+  }
+
+  return { leftEye, rightEye, yaw }
 }
 
 async function setMode(landmarker: FaceLandmarker, mode: RunningMode) {

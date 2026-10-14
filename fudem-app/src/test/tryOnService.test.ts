@@ -53,12 +53,14 @@ describe('tryOnService', () => {
         nombre: 'AN7225',
         marca: 'Arnette',
         imageUrl: '/catalog/ARNETTEAN7225.webp',
+        overlayUrl: '/tryon/ARNETTEAN7225.webp',
       },
       {
         id: 2,
         nombre: 'BOSS0999',
         marca: 'Boss',
         imageUrl: '/catalog/BOSS0999.webp',
+        overlayUrl: '/tryon/BOSS0999.webp',
       },
     ])
   })
@@ -94,6 +96,7 @@ describe('tryOnService', () => {
       nombre: 'AN7225',
       marca: 'Air Force',
       imageUrl: '/catalog/AIRFORCEAF01.webp',
+      overlayUrl: '/tryon/AIRFORCEAF01.webp',
     })
   })
 

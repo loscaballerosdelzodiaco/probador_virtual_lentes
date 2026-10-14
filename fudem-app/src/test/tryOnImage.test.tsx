@@ -199,4 +199,38 @@ describe('TryOnPage imagen (E3 / E1)', () => {
     expect(document.querySelector('video')).not.toHaveAttribute('hidden')
     expect(document.querySelector('canvas')).toHaveAttribute('hidden')
   })
+
+  it('no dibuja el lente sobre una foto si la cara no está de frente', async () => {
+    vi.stubGlobal('Image', ImmediateImage)
+    vi.mocked(detectFace).mockResolvedValue({
+      leftEye: { x: 40, y: 50 },
+      rightEye: { x: 80, y: 50 },
+      yaw: 0.8,
+    })
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    render(
+      <TryOnPage
+        models={[
+          {
+            id: 1,
+            nombre: 'AN7225',
+            marca: 'Arnette',
+            imageUrl: '/catalog/ARNETTEAN7225.webp',
+            overlayUrl: '/tryon/ARNETTEAN7225.webp',
+          },
+        ]}
+      />,
+    )
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await userEvent.upload(input, new File(['jpeg'], 'perfil.jpg', { type: 'image/jpeg' }))
+
+    expect(await screen.findByText(TRYON_MESSAGES.faceTurned)).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: 'Fotografía cargada para el probador' }),
+    ).toBeInTheDocument()
+  })
 })

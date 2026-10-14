@@ -8,6 +8,8 @@ import {
   type ModelSelectorProps,
 } from '../components/ModelSelector'
 import { requestCameraAccess, stopCamera } from '../lib/tryOn/cameraService'
+import { detectFace } from '../lib/tryOn/faceDetector'
+import { isFaceFrontal } from '../lib/tryOn/facePose'
 import {
   validateFaceInImage,
   validateImageFile,
@@ -135,6 +137,7 @@ export function TryOnPage({
   const [internalSelectedId, setInternalSelectedId] = useState<number | null>(null)
   const [modelLensImage, setModelLensImage] = useState<HTMLImageElement | null>(null)
   const [internalAdjust, setInternalAdjust] = useState<ManualAdjustValues>(adjust)
+  const [cameraFace, setCameraFace] = useState<FaceData | null | undefined>(undefined)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -143,6 +146,7 @@ export function TryOnPage({
   const frameIdRef = useRef(0)
   const uploadSeqRef = useRef(0)
   const photoUrlRef = useRef<string | null>(null)
+  const detectingRef = useRef(false)
 
   onFrameRef.current = onFrame
   const adjustValues = internalAdjust
@@ -215,7 +219,10 @@ export function TryOnPage({
 
   // T4: exponer frames listos; T5/T6 pueden usar onFrame sin tocar este bucle
   useEffect(() => {
-    if (mode !== 'camera' || !cameraReady) return
+    if (mode !== 'camera' || !cameraReady) {
+      if (mode !== 'camera') setCameraFace(undefined)
+      return
+    }
 
     let running = true
 
@@ -229,6 +236,19 @@ export function TryOnPage({
 
       if (hasFrame) {
         onFrameRef.current(video)
+        if (!detectingRef.current) {
+          detectingRef.current = true
+          void detectFace(video)
+            .then((face) => {
+              if (running) setCameraFace(face)
+            })
+            .catch(() => {
+              if (running) setCameraFace(null)
+            })
+            .finally(() => {
+              detectingRef.current = false
+            })
+        }
       }
 
       frameIdRef.current = window.requestAnimationFrame(tick)
@@ -258,19 +278,25 @@ export function TryOnPage({
   }, [selectedModel, modelLensImage, lensAnchor])
 
   useEffect(() => {
-    if (!selectedModel) return
-    const imageUrl = selectedModel.imageUrl
+    if (!selectedModel?.overlayUrl) {
+      setModelLensImage(null)
+      return
+    }
+    const overlayUrl = selectedModel.overlayUrl
     let cancelled = false
     const image = new Image()
     image.crossOrigin = 'anonymous'
     image.onload = () => {
       if (!cancelled) setModelLensImage(image)
     }
-    image.src = imageUrl
+    image.onerror = () => {
+      if (!cancelled) setModelLensImage(null)
+    }
+    image.src = overlayUrl
     return () => {
       cancelled = true
     }
-  }, [selectedModel?.id, selectedModel?.imageUrl])
+  }, [selectedModel?.id, selectedModel?.overlayUrl])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -283,7 +309,14 @@ export function TryOnPage({
       }
       return
     }
-    if (!canvas || !userPhoto || !photoFace || !activeLensImage || !activeLensAnchor) {
+    if (
+      !canvas ||
+      !userPhoto ||
+      !photoFace ||
+      !isFaceFrontal(photoFace) ||
+      !activeLensImage ||
+      !activeLensAnchor
+    ) {
       return
     }
     drawPhotoLensOnCanvas(
@@ -298,6 +331,14 @@ export function TryOnPage({
 
   const visibleError = errorKey ?? cameraError
   const cameraFailed = mode === 'camera' && cameraError === 'cameraUnavailable'
+  const photoIsFrontal = Boolean(photoFace && isFaceFrontal(photoFace))
+  const cameraFaceTurned = Boolean(cameraFace && !isFaceFrontal(cameraFace))
+  const showCameraLens =
+    mode === 'camera' && Boolean(selectedModel?.overlayUrl) && cameraFace !== null && !cameraFaceTurned
+  const faceHint: Extract<TryOnErrorKey, 'faceTurned'> | null =
+    (mode === 'photo' && photoFace && !photoIsFrontal) || cameraFaceTurned
+      ? 'faceTurned'
+      : null
 
   function selectMode(next: TryOnMode) {
     setCameraError(null)
@@ -355,7 +396,12 @@ export function TryOnPage({
       setMode('photo')
       onUploadPhoto(file)
       onPhotoFace(faceResult.face, result.image)
-      if (canvasRef.current && activeLensImage && activeLensAnchor) {
+      if (
+        canvasRef.current &&
+        activeLensImage &&
+        activeLensAnchor &&
+        isFaceFrontal(faceResult.face)
+      ) {
         drawPhotoLensOnCanvas(
           canvasRef.current,
           result.image,
@@ -422,6 +468,10 @@ export function TryOnPage({
                 Cerrar
               </button>
             </p>
+          ) : faceHint ? (
+            <p className="notice" role="status">
+              {TRYON_MESSAGES[faceHint]}
+            </p>
           ) : null}
         </div>
 
@@ -442,12 +492,12 @@ export function TryOnPage({
                   className="try-on__photo"
                   src={userPhoto.src}
                   alt="Fotografía cargada para el probador"
-                  hidden={mode !== 'photo' || Boolean(photoFace && activeLensImage)}
+                  hidden={mode !== 'photo' || Boolean(photoIsFrontal && activeLensImage)}
                 />
               ) : null}
-              {mode === 'camera' && selectedModel ? (
+              {showCameraLens && selectedModel ? (
                 <div className="try-on__lens-ghost" aria-hidden="true">
-                  <img src={selectedModel.imageUrl} alt="" />
+                  <img src={selectedModel.overlayUrl} alt="" />
                 </div>
               ) : null}
               <canvas
