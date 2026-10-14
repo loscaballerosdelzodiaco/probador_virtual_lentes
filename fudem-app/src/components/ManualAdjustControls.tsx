@@ -40,7 +40,7 @@ export function ManualAdjustControls({
               type="button"
               className="btn--filter"
               aria-label="Mover arriba"
-              onClick={() => update({ dy: values.dy - 4 })}
+              onClick={() => update({ dy: values.dy - 8 })}
             >
               ↑
             </button>
@@ -49,7 +49,7 @@ export function ManualAdjustControls({
                 type="button"
                 className="btn--filter"
                 aria-label="Mover izquierda"
-                onClick={() => update({ dx: values.dx - 4 })}
+                onClick={() => update({ dx: values.dx - 8 })}
               >
                 ←
               </button>
@@ -65,7 +65,7 @@ export function ManualAdjustControls({
                 type="button"
                 className="btn--filter"
                 aria-label="Mover derecha"
-                onClick={() => update({ dx: values.dx + 4 })}
+                onClick={() => update({ dx: values.dx + 8 })}
               >
                 →
               </button>
@@ -74,7 +74,7 @@ export function ManualAdjustControls({
               type="button"
               className="btn--filter"
               aria-label="Mover abajo"
-              onClick={() => update({ dy: values.dy + 4 })}
+              onClick={() => update({ dy: values.dy + 8 })}
             >
               ↓
             </button>
@@ -86,7 +86,7 @@ export function ManualAdjustControls({
           <input
             type="range"
             min={0.6}
-            max={1.6}
+            max={2.2}
             step={0.02}
             value={values.scale}
             disabled={disabled}

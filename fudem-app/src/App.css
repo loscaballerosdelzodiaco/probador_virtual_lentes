@@ -635,6 +635,12 @@ main {
   pointer-events: none;
 }
 
+.try-on__video[hidden],
+.try-on__photo[hidden],
+.try-on__canvas[hidden] {
+  display: none;
+}
+
 .try-on__stage {
   position: relative;
   display: flex;

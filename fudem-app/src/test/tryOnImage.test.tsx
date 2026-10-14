@@ -135,4 +135,68 @@ describe('TryOnPage imagen (E3 / E1)', () => {
     expect(await screen.findByText(TRYON_MESSAGES.invalidImage)).toBeInTheDocument()
     expect(onUploadPhoto).not.toHaveBeenCalled()
   })
+
+  it('permite mover, escalar y rotar el lente sobre una foto con rostro', async () => {
+    vi.stubGlobal('Image', ImmediateImage)
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    const onAdjustChange = vi.fn()
+    const user = userEvent.setup()
+    render(<TryOnPage onAdjustChange={onAdjustChange} />)
+
+    expect(screen.queryByLabelText('Mover derecha')).not.toBeInTheDocument()
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['jpeg'], 'cara.jpg', { type: 'image/jpeg' }))
+    await screen.findByRole('img', { name: 'Fotografía cargada para el probador' })
+
+    const moveRight = screen.getByRole('button', { name: 'Mover derecha' })
+    expect(moveRight).toBeEnabled()
+    await user.click(moveRight)
+    expect(onAdjustChange).toHaveBeenCalledWith(
+      expect.objectContaining({ dx: 8, dy: 0, scale: 1, rotation: 0 }),
+    )
+
+    await user.click(screen.getByRole('slider', { name: 'Tamaño' }))
+    expect(screen.getByRole('slider', { name: 'Tamaño' })).toBeEnabled()
+    expect(screen.getByRole('slider', { name: 'Rotación' })).toBeEnabled()
+  })
+
+  it('coloca el ajuste manual encima de los modelos', async () => {
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    const user = userEvent.setup()
+    render(<TryOnPage />)
+
+    await user.click(screen.getByRole('tab', { name: 'Subir foto' }))
+
+    const adjust = screen.getByRole('heading', { name: 'Ajuste manual' })
+    const models = screen.getByRole('heading', { name: 'Modelos' })
+    expect(adjust.compareDocumentPosition(models) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('al volver a cámara oculta la foto y deja ver el video', async () => {
+    vi.stubGlobal('Image', ImmediateImage)
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    const user = userEvent.setup()
+    render(<TryOnPage />)
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['jpeg'], 'cara.jpg', { type: 'image/jpeg' }))
+    await screen.findByRole('img', { name: 'Fotografía cargada para el probador' })
+
+    await user.click(screen.getByRole('tab', { name: 'Cámara' }))
+
+    const photo = screen.getByAltText('Fotografía cargada para el probador')
+    expect(photo).not.toBeVisible()
+    expect(document.querySelector('video')).not.toHaveAttribute('hidden')
+    expect(document.querySelector('canvas')).toHaveAttribute('hidden')
+  })
 })

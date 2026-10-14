@@ -47,6 +47,7 @@ const models: TryOnModel[] = [
 class SizedImage {
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
+  complete = true
   width = 300
   height = 120
   naturalWidth = 300
@@ -178,6 +179,11 @@ describe('TryOnPage selección de modelo', () => {
           restore: vi.fn(),
           translate: vi.fn(),
           rotate: vi.fn(),
+          getImageData: () => {
+            const data = new Uint8ClampedArray(300 * 120 * 4)
+            data.fill(255)
+            return { data, width: 300, height: 120 }
+          },
         }) as unknown as CanvasRenderingContext2D,
     )
     vi.mocked(requestCameraAccess).mockResolvedValue({
@@ -191,8 +197,8 @@ describe('TryOnPage selección de modelo', () => {
     const photo = new File(['jpeg'], 'foto.jpg', { type: 'image/jpeg' })
     await userEvent.upload(input, photo)
 
-    const preview = await screen.findByRole('img', {
-      name: 'Fotografía cargada para el probador',
+    const preview = await screen.findByAltText('Fotografía cargada para el probador', {
+      hidden: true,
     })
     const photoSrc = preview.getAttribute('src')
     const cameraCalls = vi.mocked(requestCameraAccess).mock.calls.length
