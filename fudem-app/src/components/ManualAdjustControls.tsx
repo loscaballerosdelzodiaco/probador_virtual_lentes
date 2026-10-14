@@ -1,3 +1,5 @@
+import { POSITION_STEP } from '../lib/tryOn/adjust'
+
 export type ManualAdjustValues = {
   dx: number
   dy: number
@@ -40,7 +42,7 @@ export function ManualAdjustControls({
               type="button"
               className="btn--filter"
               aria-label="Mover arriba"
-              onClick={() => update({ dy: values.dy - 8 })}
+              onClick={() => update({ dy: values.dy - POSITION_STEP })}
             >
               ↑
             </button>
@@ -49,7 +51,7 @@ export function ManualAdjustControls({
                 type="button"
                 className="btn--filter"
                 aria-label="Mover izquierda"
-                onClick={() => update({ dx: values.dx - 8 })}
+                onClick={() => update({ dx: values.dx - POSITION_STEP })}
               >
                 ←
               </button>
@@ -65,7 +67,7 @@ export function ManualAdjustControls({
                 type="button"
                 className="btn--filter"
                 aria-label="Mover derecha"
-                onClick={() => update({ dx: values.dx + 8 })}
+                onClick={() => update({ dx: values.dx + POSITION_STEP })}
               >
                 →
               </button>
@@ -74,7 +76,7 @@ export function ManualAdjustControls({
               type="button"
               className="btn--filter"
               aria-label="Mover abajo"
-              onClick={() => update({ dy: values.dy + 8 })}
+              onClick={() => update({ dy: values.dy + POSITION_STEP })}
             >
               ↓
             </button>

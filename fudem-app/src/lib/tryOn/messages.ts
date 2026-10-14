@@ -13,6 +13,7 @@ export const TRYON_MESSAGES = {
   // Aviso extra (no es de la HU3): rostro de lado
   faceTurned:
     'Mira de frente. El aro de prueba solo se muestra de frente, sin las patas.',
+  captureFailed: 'No se pudo capturar el resultado. Inténtalo de nuevo.',
 } as const
 
 /** Textos de los estados de carga (no son errores). */

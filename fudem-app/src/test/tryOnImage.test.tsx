@@ -156,7 +156,7 @@ describe('TryOnPage imagen (E3 / E1)', () => {
     expect(moveRight).toBeEnabled()
     await user.click(moveRight)
     expect(onAdjustChange).toHaveBeenCalledWith(
-      expect.objectContaining({ dx: 8, dy: 0, scale: 1, rotation: 0 }),
+      expect.objectContaining({ dx: 1, dy: 0, scale: 1, rotation: 0 }),
     )
 
     await user.click(screen.getByRole('slider', { name: 'Tamaño' }))
@@ -164,7 +164,7 @@ describe('TryOnPage imagen (E3 / E1)', () => {
     expect(screen.getByRole('slider', { name: 'Rotación' })).toBeEnabled()
   })
 
-  it('coloca el ajuste manual encima de los modelos', async () => {
+  it('coloca el ajuste, luego subir foto y los modelos debajo', async () => {
     vi.mocked(requestCameraAccess).mockResolvedValue({
       ok: false,
       reason: 'unavailable',
@@ -175,8 +175,10 @@ describe('TryOnPage imagen (E3 / E1)', () => {
     await user.click(screen.getByRole('tab', { name: 'Subir foto' }))
 
     const adjust = screen.getByRole('heading', { name: 'Ajuste manual' })
+    const upload = screen.getByRole('button', { name: 'Subir fotografía' })
     const models = screen.getByRole('heading', { name: 'Modelos' })
-    expect(adjust.compareDocumentPosition(models) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(adjust.compareDocumentPosition(upload) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(upload.compareDocumentPosition(models) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('al volver a cámara oculta la foto y deja ver el video', async () => {
