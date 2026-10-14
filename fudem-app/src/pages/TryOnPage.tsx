@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import {
   ManualAdjustControls,
   type ManualAdjustValues,
@@ -48,6 +48,29 @@ export type TryOnPageProps = {
 
 const DEFAULT_ADJUST: ManualAdjustValues = { dx: 0, dy: 0, scale: 1, rotation: 0 }
 const noop = () => {}
+
+function anchorFromImage(image: HTMLImageElement): LensAnchor | null {
+  const width = image.naturalWidth || image.width
+  const height = image.naturalHeight || image.height
+  if (width <= 0 || height <= 0) return null
+  return { x: 0, y: 0, width, height }
+}
+
+function resolveSelectedId(
+  selectedModelId: number | null | undefined,
+  internalSelectedId: number | null,
+  currentProductId: number | null,
+  models: TryOnModel[],
+): number | null {
+  const preferred = selectedModelId ?? internalSelectedId ?? currentProductId
+  if (
+    preferred != null &&
+    (models.length === 0 || models.some((model) => model.id === preferred))
+  ) {
+    return preferred
+  }
+  return models[0]?.id ?? null
+}
 
 function drawPhotoLensOnCanvas(
   canvas: HTMLCanvasElement,
@@ -104,6 +127,8 @@ export function TryOnPage({
   const [cameraReady, setCameraReady] = useState(false)
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoFace, setPhotoFace] = useState<FaceData | null>(null)
+  const [internalSelectedId, setInternalSelectedId] = useState<number | null>(null)
+  const [modelLensImage, setModelLensImage] = useState<HTMLImageElement | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -205,8 +230,36 @@ export function TryOnPage({
     }
   }, [mode, cameraReady])
 
+  const currentProductId = productId !== undefined ? productId : hashId
+  const selectedId = resolveSelectedId(
+    selectedModelId,
+    internalSelectedId,
+    currentProductId,
+    models,
+  )
+  const selectedModel = models.find((model) => model.id === selectedId) ?? null
+  const activeLensImage = selectedModel ? modelLensImage : lensImage
+  const activeLensAnchor = useMemo(() => {
+    if (!selectedModel) return lensAnchor
+    return modelLensImage ? anchorFromImage(modelLensImage) : null
+  }, [selectedModel, modelLensImage, lensAnchor])
+
   useEffect(() => {
-    if (mode !== 'photo' || !userPhoto || !photoFace || !lensImage || !lensAnchor) {
+    if (!selectedModel) return
+    const imageUrl = selectedModel.imageUrl
+    let cancelled = false
+    const image = new Image()
+    image.onload = () => {
+      if (!cancelled) setModelLensImage(image)
+    }
+    image.src = imageUrl
+    return () => {
+      cancelled = true
+    }
+  }, [selectedModel?.id, selectedModel?.imageUrl])
+
+  useEffect(() => {
+    if (mode !== 'photo' || !userPhoto || !photoFace || !activeLensImage || !activeLensAnchor) {
       return
     }
     const canvas = canvasRef.current
@@ -215,14 +268,11 @@ export function TryOnPage({
       canvas,
       userPhoto,
       photoFace,
-      lensImage,
-      lensAnchor,
+      activeLensImage,
+      activeLensAnchor,
       adjust,
     )
-  }, [mode, userPhoto, photoFace, lensImage, lensAnchor, adjust])
-
-  const currentProductId = productId !== undefined ? productId : hashId
-  const selectedId = selectedModelId ?? currentProductId
+  }, [mode, userPhoto, photoFace, activeLensImage, activeLensAnchor, adjust])
 
   const visibleError = errorKey ?? cameraError
   const cameraFailed = mode === 'camera' && cameraError === 'cameraUnavailable'
@@ -240,6 +290,11 @@ export function TryOnPage({
   function retryCamera() {
     setCameraError(null)
     setCameraAttempt((n) => n + 1)
+  }
+
+  function handleSelectModel(id: number) {
+    setInternalSelectedId(id)
+    onSelectModel(id)
   }
 
   function rememberPhoto(image: HTMLImageElement) {
@@ -277,13 +332,13 @@ export function TryOnPage({
       setMode('photo')
       onUploadPhoto(file)
       onPhotoFace(faceResult.face, result.image)
-      if (canvasRef.current && lensImage && lensAnchor) {
+      if (canvasRef.current && activeLensImage && activeLensAnchor) {
         drawPhotoLensOnCanvas(
           canvasRef.current,
           result.image,
           faceResult.face,
-          lensImage,
-          lensAnchor,
+          activeLensImage,
+          activeLensAnchor,
           adjust,
         )
       }
@@ -367,6 +422,11 @@ export function TryOnPage({
                   hidden={mode !== 'photo'}
                 />
               ) : null}
+              {mode === 'camera' && selectedModel ? (
+                <div className="try-on__lens-ghost" aria-hidden="true">
+                  <img src={selectedModel.imageUrl} alt="" />
+                </div>
+              ) : null}
               <canvas ref={canvasRef} className="try-on__canvas" />
             </div>
 
@@ -392,7 +452,7 @@ export function TryOnPage({
             <ModelSelector
               models={models}
               selectedId={selectedId}
-              onSelect={onSelectModel}
+              onSelect={handleSelectModel}
             />
 
             {mode === 'photo' ? (

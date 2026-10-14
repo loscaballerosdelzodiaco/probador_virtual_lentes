@@ -25,5 +25,6 @@ export type LensTransform = {
 export type TryOnModel = {
   id: number
   nombre: string
+  marca: string
   imageUrl: string
 }
