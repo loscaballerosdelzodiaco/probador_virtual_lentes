@@ -6,6 +6,8 @@ export type Point = {
 export type FaceData = {
   leftEye: Point
   rightEye: Point
+  /** Desplazamiento horizontal de la nariz respecto al centro de los ojos, en unidades de IPD. 0 = de frente. */
+  yaw?: number
 }
 
 export type LensAnchor = {
@@ -26,5 +28,8 @@ export type TryOnModel = {
   id: number
   nombre: string
   marca: string
+  /** Miniatura de catálogo (puede incluir patas). */
   imageUrl: string
+  /** WebP frontal de solo aros en /tryon. */
+  overlayUrl: string
 }

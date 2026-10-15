@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { computeLensTransform, drawLens } from '../lib/tryOn/lensTransform'
+import {
+  LENS_WIDTH_OVER_IPD,
+  computeLensTransform,
+  drawLens,
+} from '../lib/tryOn/lensTransform'
 import type { FaceData, LensAnchor } from '../lib/tryOn/types'
 
 const face: FaceData = {
@@ -10,12 +14,12 @@ const face: FaceData = {
 const anchor: LensAnchor = { x: 10, y: 20, width: 40, height: 20 }
 
 describe('computeLensTransform', () => {
-  it('coloca el lente entre los ojos, con ancho igual a la distancia y sin rotación', () => {
+  it('coloca el lente entre los ojos, más ancho que la distancia interpupilar y sin rotación', () => {
     const transform = computeLensTransform(face, anchor)
 
     expect(transform.x).toBe(140)
     expect(transform.y).toBe(80)
-    expect(transform.width).toBe(80)
+    expect(transform.width).toBe(80 * LENS_WIDTH_OVER_IPD)
     expect(transform.rotation).toBeCloseTo(0)
   })
 
@@ -28,7 +32,7 @@ describe('computeLensTransform', () => {
     const transform = computeLensTransform(tilted, anchor)
 
     expect(transform.rotation).toBeCloseTo(Math.PI / 4)
-    expect(transform.width).toBeCloseTo(Math.hypot(10, 10))
+    expect(transform.width).toBeCloseTo(Math.hypot(10, 10) * LENS_WIDTH_OVER_IPD)
     expect(transform.x).toBe(5)
     expect(transform.y).toBe(5)
   })
@@ -43,13 +47,13 @@ describe('computeLensTransform', () => {
 
     expect(adjusted.x).toBe(144)
     expect(adjusted.y).toBe(72)
-    expect(adjusted.width).toBe(120)
+    expect(adjusted.width).toBe(120 * LENS_WIDTH_OVER_IPD)
     expect(adjusted.rotation).toBeCloseTo(Math.PI / 2)
 
     const partial = computeLensTransform(face, anchor, { dx: 6 })
     expect(partial.x).toBe(146)
     expect(partial.y).toBe(80)
-    expect(partial.width).toBe(80)
+    expect(partial.width).toBe(80 * LENS_WIDTH_OVER_IPD)
     expect(partial.rotation).toBeCloseTo(0)
   })
 
@@ -79,9 +83,15 @@ describe('drawLens', () => {
 
     expect(ctx.translate).toHaveBeenCalledWith(140, 80)
     expect(ctx.rotate).toHaveBeenCalledWith(expect.closeTo(0))
-    // centro del ancla = (30, 30); escala = 80/40 = 2
-    // el centro de la imagen (100, 50) no es el punto de alineación
-    expect(drawImage).toHaveBeenCalledWith(image, -60, -60, 400, 200)
+    const drawScale = (80 * LENS_WIDTH_OVER_IPD) / 40
+    // centro del ancla = (30, 30); el de la imagen (100, 50) no es el punto de alineación
+    expect(drawImage).toHaveBeenCalledWith(
+      image,
+      -30 * drawScale,
+      -30 * drawScale,
+      200 * drawScale,
+      100 * drawScale,
+    )
   })
 
   it('no dibuja si no hay un lente que colocar', () => {

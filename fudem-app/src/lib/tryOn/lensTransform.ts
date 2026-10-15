@@ -15,6 +15,9 @@ const DEFAULT_ADJUST: LensManualAdjust = {
   rotation: 0,
 }
 
+/** El aro cubre más que la distancia entre pupilas (montura + aros). */
+export const LENS_WIDTH_OVER_IPD = 2.15
+
 function imageSize(image: CanvasImageSource): { width: number; height: number } | null {
   if (image instanceof HTMLImageElement) {
     const width = image.naturalWidth || image.width
@@ -41,7 +44,7 @@ function imageSize(image: CanvasImageSource): { width: number; height: number } 
 
 /**
  * Posición, ancho y rotación del lente sobre el rostro.
- * El ancho es la distancia entre ojos por la escala manual.
+ * El ancho es la distancia entre ojos × LENS_WIDTH_OVER_IPD × escala manual.
  * La rotación es el ángulo entre ambos ojos, en radianes.
  * `anchor` delimita el lente dentro de la imagen; si no es válido, el ancho queda en 0.
  */
@@ -65,7 +68,7 @@ export function computeLensTransform(
   return {
     x: (face.leftEye.x + face.rightEye.x) / 2 + dx,
     y: (face.leftEye.y + face.rightEye.y) / 2 + dy,
-    width: anchorIsValid ? eyeDistance * scale : 0,
+    width: anchorIsValid ? eyeDistance * LENS_WIDTH_OVER_IPD * scale : 0,
     rotation: eyeAngle + manualRotation,
   }
 }

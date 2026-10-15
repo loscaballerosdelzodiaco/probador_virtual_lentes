@@ -135,4 +135,104 @@ describe('TryOnPage imagen (E3 / E1)', () => {
     expect(await screen.findByText(TRYON_MESSAGES.invalidImage)).toBeInTheDocument()
     expect(onUploadPhoto).not.toHaveBeenCalled()
   })
+
+  it('permite mover, escalar y rotar el lente sobre una foto con rostro', async () => {
+    vi.stubGlobal('Image', ImmediateImage)
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    const onAdjustChange = vi.fn()
+    const user = userEvent.setup()
+    render(<TryOnPage onAdjustChange={onAdjustChange} />)
+
+    expect(screen.queryByLabelText('Mover derecha')).not.toBeInTheDocument()
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['jpeg'], 'cara.jpg', { type: 'image/jpeg' }))
+    await screen.findByRole('img', { name: 'Fotografía cargada para el probador' })
+
+    const moveRight = screen.getByRole('button', { name: 'Mover derecha' })
+    expect(moveRight).toBeEnabled()
+    await user.click(moveRight)
+    expect(onAdjustChange).toHaveBeenCalledWith(
+      expect.objectContaining({ dx: 1, dy: 0, scale: 1, rotation: 0 }),
+    )
+
+    await user.click(screen.getByRole('slider', { name: 'Tamaño' }))
+    expect(screen.getByRole('slider', { name: 'Tamaño' })).toBeEnabled()
+    expect(screen.getByRole('slider', { name: 'Rotación' })).toBeEnabled()
+  })
+
+  it('coloca el ajuste, luego subir foto y los modelos debajo', async () => {
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    const user = userEvent.setup()
+    render(<TryOnPage />)
+
+    await user.click(screen.getByRole('tab', { name: 'Subir foto' }))
+
+    const adjust = screen.getByRole('heading', { name: 'Ajuste manual' })
+    const upload = screen.getByRole('button', { name: 'Subir fotografía' })
+    const models = screen.getByRole('heading', { name: 'Modelos' })
+    expect(adjust.compareDocumentPosition(upload) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(upload.compareDocumentPosition(models) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('al volver a cámara oculta la foto y deja ver el video', async () => {
+    vi.stubGlobal('Image', ImmediateImage)
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    const user = userEvent.setup()
+    render(<TryOnPage />)
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, new File(['jpeg'], 'cara.jpg', { type: 'image/jpeg' }))
+    await screen.findByRole('img', { name: 'Fotografía cargada para el probador' })
+
+    await user.click(screen.getByRole('tab', { name: 'Cámara' }))
+
+    const photo = screen.getByAltText('Fotografía cargada para el probador')
+    expect(photo).not.toBeVisible()
+    expect(document.querySelector('video')).not.toHaveAttribute('hidden')
+    expect(document.querySelector('canvas')).toHaveAttribute('hidden')
+  })
+
+  it('no dibuja el lente sobre una foto si la cara no está de frente', async () => {
+    vi.stubGlobal('Image', ImmediateImage)
+    vi.mocked(detectFace).mockResolvedValue({
+      leftEye: { x: 40, y: 50 },
+      rightEye: { x: 80, y: 50 },
+      yaw: 0.8,
+    })
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    render(
+      <TryOnPage
+        models={[
+          {
+            id: 1,
+            nombre: 'AN7225',
+            marca: 'Arnette',
+            imageUrl: '/catalog/ARNETTEAN7225.webp',
+            overlayUrl: '/tryon/ARNETTEAN7225.webp',
+          },
+        ]}
+      />,
+    )
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await userEvent.upload(input, new File(['jpeg'], 'perfil.jpg', { type: 'image/jpeg' }))
+
+    expect(await screen.findByText(TRYON_MESSAGES.faceTurned)).toBeInTheDocument()
+    expect(
+      screen.getByRole('img', { name: 'Fotografía cargada para el probador' }),
+    ).toBeInTheDocument()
+  })
 })

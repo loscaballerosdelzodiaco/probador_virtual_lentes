@@ -7,18 +7,29 @@ import {
   ModelSelector,
   type ModelSelectorProps,
 } from '../components/ModelSelector'
+import {
+  captureFilename,
+  captureResult,
+  downloadCapture,
+  drawCaptureFrame,
+} from '../lib/tryOn/captureService'
 import { requestCameraAccess, stopCamera } from '../lib/tryOn/cameraService'
+import { detectFace } from '../lib/tryOn/faceDetector'
+import { PHOTO_POSITION_UNIT } from '../lib/tryOn/adjust'
+import { isFaceFrontal } from '../lib/tryOn/facePose'
 import {
   validateFaceInImage,
   validateImageFile,
 } from '../lib/tryOn/imageValidation'
+import { getLensAnchor } from '../lib/tryOn/lensAnchor'
 import { computeLensTransform, drawLens } from '../lib/tryOn/lensTransform'
-import { TRYON_MESSAGES } from '../lib/tryOn/messages'
+import { TRYON_MESSAGES, TRYON_STATUS_TEXT } from '../lib/tryOn/messages'
+import { getTryOnStatus, type TryOnErrorKey } from '../lib/tryOn/status'
 import type { FaceData, LensAnchor, TryOnModel } from '../lib/tryOn/types'
 import './TryOnPage.css'
 
 export type TryOnMode = 'camera' | 'photo'
-export type TryOnErrorKey = keyof typeof TRYON_MESSAGES
+export type { TryOnErrorKey }
 
 export type TryOnPageProps = {
   /** Si no se pasa, se lee de la ruta /probador#<idProducto> */
@@ -38,7 +49,7 @@ export type TryOnPageProps = {
   onPhotoFace?: (face: FaceData, image: HTMLImageElement) => void
   lensImage?: HTMLImageElement | null
   lensAnchor?: LensAnchor | null
-  /** T9: captura y descarga */
+  /** T14: se llama tras una captura descargada por el usuario */
   onCapture?: () => void
   canCapture?: boolean
   /** Error controlado desde fuera (A2, E1, E3) */
@@ -50,10 +61,9 @@ const DEFAULT_ADJUST: ManualAdjustValues = { dx: 0, dy: 0, scale: 1, rotation: 0
 const noop = () => {}
 
 function anchorFromImage(image: HTMLImageElement): LensAnchor | null {
-  const width = image.naturalWidth || image.width
-  const height = image.naturalHeight || image.height
-  if (width <= 0 || height <= 0) return null
-  return { x: 0, y: 0, width, height }
+  const anchor = getLensAnchor(image)
+  if (!(anchor.width > 0 && anchor.height > 0)) return null
+  return anchor
 }
 
 function resolveSelectedId(
@@ -87,14 +97,38 @@ function drawPhotoLensOnCanvas(
   if (width <= 0 || height <= 0) return
   canvas.width = width
   canvas.height = height
+  const nudge = Math.max(width, height) * PHOTO_POSITION_UNIT
   ctx.clearRect(0, 0, width, height)
   ctx.drawImage(photo, 0, 0, width, height)
   drawLens(
     ctx,
     lensImage,
     lensAnchor,
-    computeLensTransform(face, lensAnchor, adjust),
+    computeLensTransform(face, lensAnchor, {
+      ...adjust,
+      dx: adjust.dx * nudge,
+      dy: adjust.dy * nudge,
+    }),
   )
+}
+
+function drawCameraLensOnCanvas(
+  canvas: HTMLCanvasElement,
+  video: HTMLVideoElement,
+  face: FaceData,
+  lensImage: HTMLImageElement,
+  lensAnchor: LensAnchor,
+) {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const width = video.videoWidth
+  const height = video.videoHeight
+  if (width <= 0 || height <= 0) return
+  if (canvas.width !== width) canvas.width = width
+  if (canvas.height !== height) canvas.height = height
+  ctx.clearRect(0, 0, width, height)
+  if (!isFaceFrontal(face)) return
+  drawLens(ctx, lensImage, lensAnchor, computeLensTransform(face, lensAnchor))
 }
 
 function readProductIdFromHash(): number | null {
@@ -116,7 +150,7 @@ export function TryOnPage({
   lensImage = null,
   lensAnchor = null,
   onCapture = noop,
-  canCapture = false,
+  canCapture,
   errorKey = null,
   onDismissError = noop,
 }: TryOnPageProps) {
@@ -125,10 +159,13 @@ export function TryOnPage({
   const [cameraError, setCameraError] = useState<TryOnErrorKey | null>(null)
   const [cameraAttempt, setCameraAttempt] = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
+  const [photoLoading, setPhotoLoading] = useState(false)
   const [userPhoto, setUserPhoto] = useState<HTMLImageElement | null>(null)
   const [photoFace, setPhotoFace] = useState<FaceData | null>(null)
   const [internalSelectedId, setInternalSelectedId] = useState<number | null>(null)
   const [modelLensImage, setModelLensImage] = useState<HTMLImageElement | null>(null)
+  const [internalAdjust, setInternalAdjust] = useState<ManualAdjustValues>(adjust)
+  const [cameraFace, setCameraFace] = useState<FaceData | null | undefined>(undefined)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -137,8 +174,21 @@ export function TryOnPage({
   const frameIdRef = useRef(0)
   const uploadSeqRef = useRef(0)
   const photoUrlRef = useRef<string | null>(null)
+  const detectingRef = useRef(false)
+  const cameraDrawRef = useRef<{
+    face: FaceData | null | undefined
+    lensImage: HTMLImageElement | null
+    lensAnchor: LensAnchor | null
+  }>({ face: undefined, lensImage: null, lensAnchor: null })
 
   onFrameRef.current = onFrame
+  const adjustValues = internalAdjust
+  const canAdjustLens = Boolean(userPhoto && photoFace)
+
+  function handleAdjustChange(next: ManualAdjustValues) {
+    setInternalAdjust(next)
+    onAdjustChange(next)
+  }
 
   useEffect(() => {
     const onHashChange = () => setHashId(readProductIdFromHash())
@@ -202,7 +252,10 @@ export function TryOnPage({
 
   // T4: exponer frames listos; T5/T6 pueden usar onFrame sin tocar este bucle
   useEffect(() => {
-    if (mode !== 'camera' || !cameraReady) return
+    if (mode !== 'camera' || !cameraReady) {
+      if (mode !== 'camera') setCameraFace(undefined)
+      return
+    }
 
     let running = true
 
@@ -216,6 +269,44 @@ export function TryOnPage({
 
       if (hasFrame) {
         onFrameRef.current(video)
+        const canvas = canvasRef.current
+        const overlay = cameraDrawRef.current
+        if (canvas) {
+          if (
+            overlay.face &&
+            overlay.lensImage &&
+            overlay.lensAnchor &&
+            isFaceFrontal(overlay.face)
+          ) {
+            drawCameraLensOnCanvas(
+              canvas,
+              video,
+              overlay.face,
+              overlay.lensImage,
+              overlay.lensAnchor,
+            )
+          } else {
+            const ctx = canvas.getContext('2d')
+            ctx?.clearRect(0, 0, canvas.width, canvas.height)
+          }
+        }
+        if (!detectingRef.current) {
+          detectingRef.current = true
+          void detectFace(video)
+            .then((face) => {
+              if (!running) return
+              cameraDrawRef.current = { ...cameraDrawRef.current, face }
+              setCameraFace(face)
+            })
+            .catch(() => {
+              if (!running) return
+              cameraDrawRef.current = { ...cameraDrawRef.current, face: null }
+              setCameraFace(null)
+            })
+            .finally(() => {
+              detectingRef.current = false
+            })
+        }
       }
 
       frameIdRef.current = window.requestAnimationFrame(tick)
@@ -244,38 +335,141 @@ export function TryOnPage({
     return modelLensImage ? anchorFromImage(modelLensImage) : null
   }, [selectedModel, modelLensImage, lensAnchor])
 
+  cameraDrawRef.current = {
+    face: cameraFace,
+    lensImage: activeLensImage,
+    lensAnchor: activeLensAnchor,
+  }
+
   useEffect(() => {
-    if (!selectedModel) return
-    const imageUrl = selectedModel.imageUrl
+    if (!selectedModel?.overlayUrl) {
+      setModelLensImage(null)
+      return
+    }
+    const overlayUrl = selectedModel.overlayUrl
     let cancelled = false
     const image = new Image()
+    image.crossOrigin = 'anonymous'
     image.onload = () => {
       if (!cancelled) setModelLensImage(image)
     }
-    image.src = imageUrl
+    image.onerror = () => {
+      if (!cancelled) setModelLensImage(null)
+    }
+    image.src = overlayUrl
     return () => {
       cancelled = true
     }
-  }, [selectedModel?.id, selectedModel?.imageUrl])
+  }, [selectedModel?.id, selectedModel?.overlayUrl])
 
   useEffect(() => {
-    if (mode !== 'photo' || !userPhoto || !photoFace || !activeLensImage || !activeLensAnchor) {
+    if (mode !== 'photo') {
       return
     }
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (
+      !canvas ||
+      !userPhoto ||
+      !photoFace ||
+      !isFaceFrontal(photoFace) ||
+      !activeLensImage ||
+      !activeLensAnchor
+    ) {
+      return
+    }
     drawPhotoLensOnCanvas(
       canvas,
       userPhoto,
       photoFace,
       activeLensImage,
       activeLensAnchor,
-      adjust,
+      adjustValues,
     )
-  }, [mode, userPhoto, photoFace, activeLensImage, activeLensAnchor, adjust])
+  }, [mode, userPhoto, photoFace, activeLensImage, activeLensAnchor, adjustValues])
 
   const visibleError = errorKey ?? cameraError
+  const status = getTryOnStatus({
+    mode,
+    cameraReady,
+    photoLoading,
+    hasPhoto: Boolean(userPhoto && photoFace),
+    cameraFace,
+    errorKey: visibleError,
+  })
   const cameraFailed = mode === 'camera' && cameraError === 'cameraUnavailable'
+  const photoIsFrontal = Boolean(photoFace && isFaceFrontal(photoFace))
+  const cameraFaceTurned = Boolean(cameraFace && !isFaceFrontal(cameraFace))
+  const showCameraLens =
+    mode === 'camera' &&
+    Boolean(selectedModel?.overlayUrl && cameraFace && activeLensImage && activeLensAnchor) &&
+    !cameraFaceTurned
+  const faceHint: Extract<TryOnErrorKey, 'faceTurned'> | null =
+    (mode === 'photo' && photoFace && !photoIsFrontal) || cameraFaceTurned
+      ? 'faceTurned'
+      : null
+  const photoCaptureReady =
+    mode === 'photo' && photoIsFrontal && Boolean(userPhoto && activeLensImage && activeLensAnchor)
+  const cameraCaptureReady =
+    mode === 'camera' && cameraReady && showCameraLens && Boolean(cameraFace && activeLensImage && activeLensAnchor)
+  const sourceReady = photoCaptureReady || cameraCaptureReady
+  const captureEnabled = (canCapture ?? true) && sourceReady && status !== 'error'
+
+  function photoLensAdjust() {
+    const photo = userPhoto
+    if (!photo) return undefined
+    const width = photo.naturalWidth || photo.width
+    const height = photo.naturalHeight || photo.height
+    const nudge = Math.max(width, height) * PHOTO_POSITION_UNIT
+    return {
+      ...adjustValues,
+      dx: adjustValues.dx * nudge,
+      dy: adjustValues.dy * nudge,
+    }
+  }
+
+  function resolveCaptureCanvas(): HTMLCanvasElement {
+    if (mode === 'photo' && userPhoto && photoFace && activeLensImage && activeLensAnchor) {
+      const existing = canvasRef.current
+      if (existing && existing.width > 0 && existing.height > 0) return existing
+      const composed = document.createElement('canvas')
+      drawCaptureFrame(composed, userPhoto, {
+        image: activeLensImage,
+        anchor: activeLensAnchor,
+        face: photoFace,
+        adjust: photoLensAdjust(),
+      })
+      return composed
+    }
+
+    const video = videoRef.current
+    if (
+      mode === 'camera' &&
+      video &&
+      cameraFace &&
+      activeLensImage &&
+      activeLensAnchor
+    ) {
+      const composed = document.createElement('canvas')
+      drawCaptureFrame(composed, video, {
+        image: activeLensImage,
+        anchor: activeLensAnchor,
+        face: cameraFace,
+      })
+      return composed
+    }
+
+    throw new Error('captureFailed')
+  }
+
+  async function handleCapture() {
+    try {
+      const blob = await captureResult(resolveCaptureCanvas())
+      downloadCapture(blob, captureFilename(selectedModel?.nombre ?? 'lentes'))
+      onCapture()
+    } catch {
+      setCameraError('captureFailed')
+    }
+  }
 
   function selectMode(next: TryOnMode) {
     setCameraError(null)
@@ -311,6 +505,7 @@ export function TryOnPage({
     if (!file) return
 
     const seq = ++uploadSeqRef.current
+    setPhotoLoading(true)
     try {
       const result = await validateImageFile(file)
       if (seq !== uploadSeqRef.current) return
@@ -329,22 +524,30 @@ export function TryOnPage({
       setCameraError(null)
       rememberPhoto(result.image)
       setPhotoFace(faceResult.face)
+      setInternalAdjust(DEFAULT_ADJUST)
       setMode('photo')
       onUploadPhoto(file)
       onPhotoFace(faceResult.face, result.image)
-      if (canvasRef.current && activeLensImage && activeLensAnchor) {
+      if (
+        canvasRef.current &&
+        activeLensImage &&
+        activeLensAnchor &&
+        isFaceFrontal(faceResult.face)
+      ) {
         drawPhotoLensOnCanvas(
           canvasRef.current,
           result.image,
           faceResult.face,
           activeLensImage,
           activeLensAnchor,
-          adjust,
+          adjustValues,
         )
       }
     } catch {
       if (seq !== uploadSeqRef.current) return
       setCameraError('invalidImage')
+    } finally {
+      if (seq === uploadSeqRef.current) setPhotoLoading(false)
     }
   }
 
@@ -387,7 +590,7 @@ export function TryOnPage({
 
         {/* Espacio de mensajes (A2, E1, E2, E3) */}
         <div className="try-on__messages" aria-live="polite">
-          {visibleError ? (
+          {status === 'error' && visibleError ? (
             <p className="notice notice--error" role="alert">
               {TRYON_MESSAGES[visibleError]}{' '}
               {cameraFailed ? (
@@ -399,13 +602,27 @@ export function TryOnPage({
                 Cerrar
               </button>
             </p>
+          ) : status === 'faceNotDetected' ? (
+            <p className="notice" role="status">
+              {TRYON_MESSAGES.faceNotDetected}
+            </p>
+          ) : faceHint ? (
+            <p className="notice" role="status">
+              {TRYON_MESSAGES[faceHint]}
+            </p>
+          ) : status === 'loading' ? (
+            <p className="notice">
+              {photoLoading
+                ? TRYON_STATUS_TEXT.loadingPhoto
+                : TRYON_STATUS_TEXT.loadingCamera}
+            </p>
           ) : null}
         </div>
 
         <div className="try-on__layout">
           <div className="try-on__stage-wrap">
             {/* <video> con <canvas> encima */}
-            <div className="try-on__stage" data-mode={mode}>
+            <div className="try-on__stage" data-mode={mode} data-status={status}>
               <video
                 ref={videoRef}
                 className="try-on__video"
@@ -419,16 +636,34 @@ export function TryOnPage({
                   className="try-on__photo"
                   src={userPhoto.src}
                   alt="Fotografía cargada para el probador"
-                  hidden={mode !== 'photo'}
+                  hidden={mode !== 'photo' || Boolean(photoIsFrontal && activeLensImage)}
                 />
               ) : null}
-              {mode === 'camera' && selectedModel ? (
-                <div className="try-on__lens-ghost" aria-hidden="true">
-                  <img src={selectedModel.imageUrl} alt="" />
-                </div>
-              ) : null}
-              <canvas ref={canvasRef} className="try-on__canvas" />
+              <canvas
+                ref={canvasRef}
+                className="try-on__canvas"
+                hidden={
+                  mode === 'photo'
+                    ? !Boolean(photoIsFrontal && activeLensImage)
+                    : !showCameraLens
+                }
+              />
             </div>
+
+          </div>
+
+          <aside className="try-on__sidebar">
+            {mode === 'photo' ? (
+              <ManualAdjustControls
+                values={adjustValues}
+                onChange={handleAdjustChange}
+                disabled={!canAdjustLens}
+              />
+            ) : (
+              <p className="try-on__camera-note notice" role="status">
+                En modo cámara el ajuste es automático con la detección facial.
+              </p>
+            )}
 
             <div className="try-on__stage-actions">
               <button
@@ -446,41 +681,27 @@ export function TryOnPage({
                 onChange={handleFileChange}
               />
             </div>
-          </div>
-
-          <aside className="try-on__sidebar">
-            <ModelSelector
-              models={models}
-              selectedId={selectedId}
-              onSelect={handleSelectModel}
-            />
-
-            {mode === 'photo' ? (
-              <ManualAdjustControls
-                values={adjust}
-                onChange={onAdjustChange}
-                disabled={!canCapture}
-              />
-            ) : (
-              <p className="try-on__camera-note notice" role="status">
-                En modo cámara el ajuste es automático con la detección facial.
-              </p>
-            )}
 
             <div className="try-on__capture">
               <button
                 type="button"
                 className="btn try-on__capture-btn"
-                disabled={!canCapture || Boolean(visibleError)}
-                onClick={onCapture}
+                disabled={!captureEnabled}
+                onClick={() => void handleCapture()}
               >
-                Capturar resultado
+                Capturar imagen
               </button>
               <p className="try-on__capture-hint">
                 La captura se descarga en tu dispositivo; no se envía al servidor.
               </p>
             </div>
           </aside>
+
+          <ModelSelector
+            models={models}
+            selectedId={selectedId}
+            onSelect={handleSelectModel}
+          />
         </div>
 
         <p className="try-on__disclaimer">

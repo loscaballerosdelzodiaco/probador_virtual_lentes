@@ -9,10 +9,9 @@ import {
 import { CatalogPage } from './pages/CatalogPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegistroPage } from './pages/RegistroPage'
-import { toTryOnModel } from './lib/tryOn/models'
+import { getTryOnModels } from './lib/tryOn/tryOnService'
 import type { TryOnModel } from './lib/tryOn/types'
 import { TryOnPage } from './pages/TryOnPage'
-import { getAvailableProducts } from './services/productService'
 import {
   SESSION_ERROR_MESSAGE,
   getCurrentSession,
@@ -88,10 +87,10 @@ function App() {
     if (!canOpenCatalog || route.name !== 'probador') return
 
     let active = true
-    getAvailableProducts()
+    getTryOnModels()
       .then((rows) => {
         if (!active) return
-        setTryOnModels(rows.map(toTryOnModel))
+        setTryOnModels(rows)
       })
       .catch((error: unknown) => {
         if (!active) return

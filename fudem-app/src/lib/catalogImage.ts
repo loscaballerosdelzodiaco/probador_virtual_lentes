@@ -1,6 +1,17 @@
-export function catalogImageSrc(fileName: string | null): string {
+export function catalogImageFileName(fileName: string | null | undefined): string | null {
   const name = fileName?.split(/[/\\]/).pop()?.trim()
+  return name || null
+}
+
+export function catalogImageSrc(fileName: string | null): string {
+  const name = catalogImageFileName(fileName)
   return name ? `/catalog/${name}` : '/catalog/aviador.svg'
+}
+
+/** Overlay frontal del probador (solo aros). Mismo archivo que el catálogo, otra carpeta. */
+export function tryOnImageSrc(fileName: string | null | undefined): string | null {
+  const name = catalogImageFileName(fileName)
+  return name ? `/tryon/${name}` : null
 }
 
 const CATALOG_BRANDS: { prefix: string; marca: string }[] = [
