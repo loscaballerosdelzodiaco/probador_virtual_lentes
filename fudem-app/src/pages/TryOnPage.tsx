@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from 'react'
 import {
   ManualAdjustControls,
   type ManualAdjustValues,
@@ -181,9 +188,25 @@ export function TryOnPage({
     lensAnchor: LensAnchor | null
   }>({ face: undefined, lensImage: null, lensAnchor: null })
 
-  onFrameRef.current = onFrame
   const adjustValues = internalAdjust
   const canAdjustLens = Boolean(userPhoto && photoFace)
+  const currentProductId = productId !== undefined ? productId : hashId
+  const selectedId = resolveSelectedId(
+    selectedModelId,
+    internalSelectedId,
+    currentProductId,
+    models,
+  )
+  const selectedModel = models.find((model) => model.id === selectedId) ?? null
+
+  if (mode !== 'camera') {
+    if (cameraReady) setCameraReady(false)
+    if (cameraFace !== undefined) setCameraFace(undefined)
+  }
+
+  if (!selectedModel?.overlayUrl && modelLensImage) {
+    setModelLensImage(null)
+  }
 
   function handleAdjustChange(next: ManualAdjustValues) {
     setInternalAdjust(next)
@@ -205,7 +228,6 @@ export function TryOnPage({
   // T3/T4: pedir la cámara cuando el modo es "camera"
   useEffect(() => {
     if (mode !== 'camera') {
-      setCameraReady(false)
       return
     }
 
@@ -253,7 +275,6 @@ export function TryOnPage({
   // T4: exponer frames listos; T5/T6 pueden usar onFrame sin tocar este bucle
   useEffect(() => {
     if (mode !== 'camera' || !cameraReady) {
-      if (mode !== 'camera') setCameraFace(undefined)
       return
     }
 
@@ -321,29 +342,23 @@ export function TryOnPage({
     }
   }, [mode, cameraReady])
 
-  const currentProductId = productId !== undefined ? productId : hashId
-  const selectedId = resolveSelectedId(
-    selectedModelId,
-    internalSelectedId,
-    currentProductId,
-    models,
-  )
-  const selectedModel = models.find((model) => model.id === selectedId) ?? null
   const activeLensImage = selectedModel ? modelLensImage : lensImage
   const activeLensAnchor = useMemo(() => {
     if (!selectedModel) return lensAnchor
     return modelLensImage ? anchorFromImage(modelLensImage) : null
   }, [selectedModel, modelLensImage, lensAnchor])
 
-  cameraDrawRef.current = {
-    face: cameraFace,
-    lensImage: activeLensImage,
-    lensAnchor: activeLensAnchor,
-  }
+  useLayoutEffect(() => {
+    onFrameRef.current = onFrame
+    cameraDrawRef.current = {
+      face: cameraFace,
+      lensImage: activeLensImage,
+      lensAnchor: activeLensAnchor,
+    }
+  }, [onFrame, cameraFace, activeLensImage, activeLensAnchor])
 
   useEffect(() => {
     if (!selectedModel?.overlayUrl) {
-      setModelLensImage(null)
       return
     }
     const overlayUrl = selectedModel.overlayUrl
@@ -644,7 +659,7 @@ export function TryOnPage({
                 className="try-on__canvas"
                 hidden={
                   mode === 'photo'
-                    ? !Boolean(photoIsFrontal && activeLensImage)
+                    ? !(photoIsFrontal && activeLensImage)
                     : !showCameraLens
                 }
               />

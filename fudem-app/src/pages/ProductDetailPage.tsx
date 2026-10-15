@@ -13,10 +13,17 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
   const [product, setProduct] = useState<ProductoDisponible | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadedId, setLoadedId] = useState(productId)
+
+  if (productId !== loadedId) {
+    setLoadedId(productId)
+    setProduct(null)
+    setLoadError(null)
+    setIsLoading(true)
+  }
 
   useEffect(() => {
     let active = true
-    setIsLoading(true)
 
     getAvailableProductById(productId)
       .then((row) => {
