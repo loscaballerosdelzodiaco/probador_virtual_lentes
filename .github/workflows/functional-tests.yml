@@ -5,6 +5,7 @@ on:
     branches:
       - 'Sprint[0-9]*'
       - 'Sprint[0-9]*/**'
+      - 'Probador'
   pull_request:
     branches:
       - main

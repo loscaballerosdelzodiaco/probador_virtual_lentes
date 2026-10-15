@@ -103,6 +103,26 @@ describe('TryOnPage cámara (T4)', () => {
     ).toHaveTextContent(TRYON_MESSAGES.cameraUnavailable)
     expect(frameCallback).toBeNull()
     expect(onFrame).not.toHaveBeenCalled()
+    expect(stopCamera).not.toHaveBeenCalled()
+  })
+
+  it('Reintentar vuelve a pedir la cámara después de una denegación (E2)', async () => {
+    const stream = fakeStream()
+    vi.mocked(requestCameraAccess)
+      .mockResolvedValueOnce({ ok: false, reason: 'denied' })
+      .mockResolvedValueOnce({ ok: true, stream })
+    const onFrame = vi.fn()
+
+    render(<TryOnPage onFrame={onFrame} />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(TRYON_MESSAGES.cameraUnavailable)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    await waitFor(() => {
+      expect(document.querySelector('video')?.srcObject).toBe(stream)
+    })
+    expect(requestCameraAccess).toHaveBeenCalledTimes(2)
+    expect(onFrame).not.toHaveBeenCalled()
   })
 
   it('detiene la cámara al pasar a modo foto', async () => {

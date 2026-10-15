@@ -5,6 +5,7 @@ import {
   validateFaceInImage,
   validateImageFile,
 } from '../lib/tryOn/imageValidation'
+import { TRYON_MESSAGES } from '../lib/tryOn/messages'
 
 vi.mock('../lib/tryOn/faceDetector', () => ({
   detectFace: vi.fn(),
@@ -26,7 +27,9 @@ class ImmediateImage {
 }
 
 function file(name: string, type: string, size = 32): File {
-  return new File([new Uint8Array(size)], name, { type })
+  const created = new File([new Uint8Array(Math.min(size, 32))], name, { type })
+  Object.defineProperty(created, 'size', { value: size })
+  return created
 }
 
 describe('validateImageFile', () => {
@@ -74,6 +77,18 @@ describe('validateImageFile', () => {
     )
     expect(result).toEqual({ valid: false, error: 'format' })
   })
+
+  it('acepta un JPG de 0 bytes: no hay chequeo de archivo vacío en la implementación', async () => {
+    vi.stubGlobal('Image', ImmediateImage)
+    const empty = await validateImageFile(file('vacio.jpg', 'image/jpeg', 0))
+    expect(empty.valid).toBe(true)
+  })
+
+  it('el error de formato corresponde a E3 (unsupportedFormat)', () => {
+    expect(TRYON_MESSAGES.unsupportedFormat).toBe(
+      'Formato no compatible, sube una imagen JPG o PNG',
+    )
+  })
 })
 
 describe('validateFaceInImage', () => {
@@ -105,5 +120,19 @@ describe('validateFaceInImage', () => {
   it('rechaza la imagen si la detección falla', async () => {
     vi.mocked(detectFace).mockRejectedValue(new Error('modelo'))
     await expect(validateFaceInImage(image)).resolves.toEqual({ valid: false })
+  })
+
+  it('no reutiliza FaceData previo: la firma solo recibe la imagen y siempre llama a detectFace', async () => {
+    vi.mocked(detectFace).mockResolvedValue(face)
+    await validateFaceInImage(image)
+    await validateFaceInImage(image)
+    expect(detectFace).toHaveBeenCalledTimes(2)
+    expect(validateFaceInImage).toHaveLength(1)
+  })
+
+  it('sin rostro o con fallo de detector el llamador debe usar E1 (invalidImage)', () => {
+    expect(TRYON_MESSAGES.invalidImage).toBe(
+      'La imagen no es válida, sube una fotografía donde se vea tu rostro',
+    )
   })
 })

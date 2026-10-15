@@ -62,6 +62,17 @@ describe('computeLensTransform', () => {
     expect(transform.width).toBe(0)
     expect(transform.x).toBe(140)
   })
+
+  it('el ancho queda en 0 si la distancia entre ojos es 0 (ojos coincidentes)', () => {
+    const collapsed: FaceData = {
+      leftEye: { x: 50, y: 50 },
+      rightEye: { x: 50, y: 50 },
+    }
+    const transform = computeLensTransform(collapsed, anchor)
+    expect(transform.width).toBe(0)
+    expect(transform.x).toBe(50)
+    expect(transform.y).toBe(50)
+  })
 })
 
 describe('drawLens', () => {

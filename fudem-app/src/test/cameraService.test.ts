@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { requestCameraAccess, stopCamera } from '../lib/tryOn/cameraService'
+import { TRYON_MESSAGES } from '../lib/tryOn/messages'
 
 function fakeStream() {
   const track = { stop: vi.fn() }
@@ -26,17 +27,38 @@ describe('cameraService', () => {
     await expect(requestCameraAccess()).resolves.toEqual({ ok: true, stream })
   })
 
-  it('marca denied si el permiso se rechaza', async () => {
+  it('marca denied si el permiso se rechaza (NotAllowedError → E2 en la UI)', async () => {
+    const getUserMedia = vi.fn().mockRejectedValue(new DOMException('denied', 'NotAllowedError'))
     vi.stubGlobal('navigator', {
-      mediaDevices: {
-        getUserMedia: vi.fn().mockRejectedValue(new DOMException('denied', 'NotAllowedError')),
-      },
+      mediaDevices: { getUserMedia },
     })
 
     await expect(requestCameraAccess()).resolves.toEqual({
       ok: false,
       reason: 'denied',
     })
+    expect(getUserMedia).toHaveBeenCalledWith({
+      video: { facingMode: 'user' },
+      audio: false,
+    })
+    expect(TRYON_MESSAGES.cameraUnavailable).toBe(
+      'No se pudo acceder a la cámara, puedes subir una fotografía',
+    )
+  })
+
+  it('permite reintentar getUserMedia después de una denegación', async () => {
+    const { stream } = fakeStream()
+    const getUserMedia = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException('denied', 'NotAllowedError'))
+      .mockResolvedValueOnce(stream)
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getUserMedia },
+    })
+
+    await expect(requestCameraAccess()).resolves.toEqual({ ok: false, reason: 'denied' })
+    await expect(requestCameraAccess()).resolves.toEqual({ ok: true, stream })
+    expect(getUserMedia).toHaveBeenCalledTimes(2)
   })
 
   it('marca unavailable si no hay getUserMedia o falla el dispositivo', async () => {

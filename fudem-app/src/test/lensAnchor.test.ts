@@ -106,6 +106,18 @@ describe('boundingBoxFromAlpha', () => {
       height: 0,
     })
   })
+
+  it('ignora alpha ≤ 16 y toma solo la región realmente visible', () => {
+    const pixels = new Uint8ClampedArray(2 * 2 * 4)
+    pixels[3] = 16
+    pixels[7] = 17
+    expect(boundingBoxFromAlpha(pixels, 2, 2)).toEqual({
+      x: 1,
+      y: 0,
+      width: 1,
+      height: 1,
+    })
+  })
 })
 
 describe('getLensAnchor', () => {
@@ -155,6 +167,17 @@ describe('getLensAnchor', () => {
     mockCanvasPixels(pixels)
     const loaded = fakeImage('/catalog/AIRFORCEAFV116.webp', 300, 300, true)
     expect(getLensAnchor(loaded)).toEqual({ x: 1, y: 2, width: 3, height: 4 })
+  })
+
+  it('devuelve recuadro vacío para una imagen totalmente transparente', () => {
+    mockCanvasPixels(new Uint8ClampedArray(8 * 8 * 4))
+    const image = fakeImage('/tryon/transparente.webp', 8, 8)
+    expect(getLensAnchor(image)).toEqual({ x: 0, y: 0, width: 0, height: 0 })
+  })
+
+  it('devuelve recuadro vacío si el tamaño de la imagen es 0', () => {
+    const image = fakeImage('/tryon/vacio.webp', 0, 0)
+    expect(getLensAnchor(image)).toEqual({ x: 0, y: 0, width: 0, height: 0 })
   })
 
   it('devuelve recuadro vacío si falla la lectura del canvas', () => {

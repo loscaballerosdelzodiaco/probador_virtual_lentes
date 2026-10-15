@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { detectFace } from '../lib/tryOn/faceDetector'
+import { MAX_IMAGE_BYTES } from '../lib/tryOn/imageValidation'
 import { TRYON_MESSAGES } from '../lib/tryOn/messages'
 import { TryOnPage } from '../pages/TryOnPage'
 import { requestCameraAccess } from '../lib/tryOn/cameraService'
@@ -57,6 +58,25 @@ describe('TryOnPage imagen (E3 / E1)', () => {
     expect(await screen.findByText(TRYON_MESSAGES.unsupportedFormat)).toBeInTheDocument()
     expect(onUploadPhoto).not.toHaveBeenCalled()
     expect(screen.queryByRole('img', { name: 'Fotografía cargada para el probador' })).toBeNull()
+  })
+
+  it('un JPG demasiado grande muestra E1 invalidImage, no E3', async () => {
+    vi.mocked(requestCameraAccess).mockResolvedValue({
+      ok: false,
+      reason: 'unavailable',
+    })
+    const onUploadPhoto = vi.fn()
+    render(<TryOnPage onUploadPhoto={onUploadPhoto} />)
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    const huge = new File(['x'], 'grande.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(huge, 'size', { value: MAX_IMAGE_BYTES + 1 })
+    Object.defineProperty(input, 'files', { configurable: true, value: [huge] })
+    fireEvent.change(input)
+
+    expect(await screen.findByText(TRYON_MESSAGES.invalidImage)).toBeInTheDocument()
+    expect(screen.queryByText(TRYON_MESSAGES.unsupportedFormat)).toBeNull()
+    expect(onUploadPhoto).not.toHaveBeenCalled()
   })
 
   it('carga una imagen JPG válida en un elemento de imagen', async () => {
