@@ -4,6 +4,8 @@ const supabaseUrl =
   process.env.VITE_SUPABASE_URL ?? 'https://example.supabase.co'
 const supabaseAnonKey =
   process.env.VITE_SUPABASE_ANON_KEY ?? 'test-anon-key'
+const supabasePublishableKey =
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? 'test-publishable-key'
 
 export default defineConfig({
   testDir: './e2e',
@@ -30,6 +32,7 @@ export default defineConfig({
       ...process.env,
       VITE_SUPABASE_URL: supabaseUrl,
       VITE_SUPABASE_ANON_KEY: supabaseAnonKey,
+      VITE_SUPABASE_PUBLISHABLE_KEY: supabasePublishableKey,
     },
   },
 })
