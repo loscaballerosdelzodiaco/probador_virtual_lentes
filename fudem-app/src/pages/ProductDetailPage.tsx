@@ -30,6 +30,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
         if (!active) return
         setProduct(row)
         setLoadError(null)
+        setLoadedProductId(productId)
       })
       .catch((error: unknown) => {
         if (!active) return
@@ -39,9 +40,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
             ? error.message
             : 'No se pudo consultar el producto.',
         )
-      })
-      .finally(() => {
-        if (active) setIsLoading(false)
+        setLoadedProductId(productId)
       })
 
     return () => {
@@ -49,7 +48,11 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
     }
   }, [productId])
 
-  const title = product?.nombre?.trim() || 'Montura'
+  const isLoading = loadedProductId !== productId
+  const visibleProduct = isLoading ? null : product
+  const visibleError = isLoading ? null : loadError
+
+  const title = visibleProduct?.nombre?.trim() || 'Montura'
 
   return (
     <section id="detalle" className="section">
@@ -60,18 +63,18 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
         </nav>
 
         {isLoading ? <p>Cargando montura…</p> : null}
-        {loadError ? (
+        {visibleError ? (
           <p className="notice notice--error" role="alert">
-            {loadError}
+            {visibleError}
           </p>
         ) : null}
-        {!isLoading && !loadError && !product ? (
+        {!isLoading && !visibleError && !visibleProduct ? (
           <p className="notice" role="status">
             No encontramos esta montura disponible.{' '}
             <a href="/catalogo">Volver al catálogo</a>
           </p>
         ) : null}
-        {product ? <ProductDetail product={product} /> : null}
+        {visibleProduct ? <ProductDetail product={visibleProduct} /> : null}
       </div>
     </section>
   )
