@@ -117,7 +117,7 @@ export function CatalogPage() {
         <h1>Catálogo de lentes</h1>
         <p>
           Explora aros disponibles y elige el modelo que mejor se adapte a
-          tu estilo. El probador virtual se integrará en un siguiente paso.
+          tu estilo.
         </p>
         <div className="catalog-filters">
           <button
