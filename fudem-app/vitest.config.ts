@@ -6,5 +6,10 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    env: {
+      VITE_SUPABASE_URL: 'https://example.supabase.co',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
+      VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+    },
   },
 })

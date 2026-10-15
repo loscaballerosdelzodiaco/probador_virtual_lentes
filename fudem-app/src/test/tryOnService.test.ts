@@ -7,16 +7,12 @@ import {
 import type { ProductoDisponible } from '../services/productService'
 import { getTryOnModelById, getTryOnModels } from '../lib/tryOn/tryOnService'
 
-vi.mock('../services/productService', async () => {
-  const actual = await vi.importActual<typeof import('../services/productService')>(
-    '../services/productService',
-  )
-  return {
-    ...actual,
-    getAvailableProducts: vi.fn(),
-    getAvailableProductById: vi.fn(),
-  }
-})
+vi.mock('../services/productService', () => ({
+  CATALOG_LOAD_ERROR_MESSAGE:
+    'No pudimos cargar el catálogo. Inténtalo de nuevo en unos momentos.',
+  getAvailableProducts: vi.fn(),
+  getAvailableProductById: vi.fn(),
+}))
 
 function product(
   overrides: Partial<ProductoDisponible> & Pick<ProductoDisponible, 'id'>,
