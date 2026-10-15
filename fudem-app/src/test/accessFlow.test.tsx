@@ -76,6 +76,26 @@ describe('flujo de acceso', () => {
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
+  it('redirige al login si se abre el probador sin sesión', async () => {
+    window.history.replaceState(null, '', '/probador#4')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Probador virtual' })).not.toBeInTheDocument()
+  })
+
+  it('abre el probador cuando ya hay una sesión válida', async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    window.history.replaceState(null, '', '/probador#4')
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Probador virtual' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/se integrará en un siguiente paso/)).not.toBeInTheDocument()
+  })
+
   it('abre el catálogo cuando ya hay una sesión válida', async () => {
     vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
     render(<App />)

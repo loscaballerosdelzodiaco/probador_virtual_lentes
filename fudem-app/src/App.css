@@ -273,6 +273,11 @@ main {
   overflow-wrap: anywhere;
 }
 
+.product-detail__try-on {
+  align-self: flex-start;
+  margin-top: var(--space-5);
+}
+
 .site-footer .container {
   width: min(92%, var(--container-max));
   margin-bottom: var(--space-5);
