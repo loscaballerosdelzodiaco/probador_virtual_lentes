@@ -12,7 +12,15 @@ type ProductDetailPageProps = {
 export function ProductDetailPage({ productId }: ProductDetailPageProps) {
   const [product, setProduct] = useState<ProductoDisponible | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [loadedProductId, setLoadedProductId] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadedId, setLoadedId] = useState(productId)
+
+  if (productId !== loadedId) {
+    setLoadedId(productId)
+    setProduct(null)
+    setLoadError(null)
+    setIsLoading(true)
+  }
 
   useEffect(() => {
     let active = true
@@ -22,7 +30,6 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
         if (!active) return
         setProduct(row)
         setLoadError(null)
-        setLoadedProductId(productId)
       })
       .catch((error: unknown) => {
         if (!active) return
@@ -32,7 +39,9 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
             ? error.message
             : 'No se pudo consultar el producto.',
         )
-        setLoadedProductId(productId)
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
       })
 
     return () => {
@@ -40,11 +49,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
     }
   }, [productId])
 
-  const isLoading = loadedProductId !== productId
-  const visibleProduct = isLoading ? null : product
-  const visibleError = isLoading ? null : loadError
-
-  const title = visibleProduct?.nombre?.trim() || 'Montura'
+  const title = product?.nombre?.trim() || 'Montura'
 
   return (
     <section id="detalle" className="section">
@@ -55,18 +60,18 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
         </nav>
 
         {isLoading ? <p>Cargando montura…</p> : null}
-        {visibleError ? (
+        {loadError ? (
           <p className="notice notice--error" role="alert">
-            {visibleError}
+            {loadError}
           </p>
         ) : null}
-        {!isLoading && !visibleError && !visibleProduct ? (
+        {!isLoading && !loadError && !product ? (
           <p className="notice" role="status">
             No encontramos esta montura disponible.{' '}
             <a href="/catalogo">Volver al catálogo</a>
           </p>
         ) : null}
-        {visibleProduct ? <ProductDetail product={visibleProduct} /> : null}
+        {product ? <ProductDetail product={product} /> : null}
       </div>
     </section>
   )

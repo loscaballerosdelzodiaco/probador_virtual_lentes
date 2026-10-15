@@ -1,45 +1,51 @@
 import { describe, expect, it } from 'vitest'
-import { isCatalogRoute, productIdFromHash, readAppRoute } from '../lib/appRoute'
+import {
+  isProtectedRoute,
+  productIdFromHash,
+  readAppRoute,
+} from '../lib/appRoute'
 
 describe('readAppRoute', () => {
-  it('resuelve registro como ruta por defecto', () => {
-    expect(readAppRoute('/', '')).toEqual({ name: 'registro' })
-    expect(readAppRoute('/otra', '')).toEqual({ name: 'registro' })
+  it('interpreta /probador#<id> con el identificador del producto', () => {
+    expect(readAppRoute('/probador', '#12')).toEqual({
+      name: 'probador',
+      productId: 12,
+    })
+    expect(productIdFromHash('#12')).toBe(12)
   })
 
-  it('resuelve login por path o hash', () => {
-    expect(readAppRoute('/login', '')).toEqual({ name: 'login' })
-    expect(readAppRoute('/', '#login')).toEqual({ name: 'login' })
+  it('deja el probador sin producto si el hash no trae un id válido', () => {
+    expect(readAppRoute('/probador', '')).toEqual({
+      name: 'probador',
+      productId: null,
+    })
+    expect(readAppRoute('/probador', '#probador')).toEqual({
+      name: 'probador',
+      productId: null,
+    })
+    expect(readAppRoute('/probador', '#0')).toEqual({
+      name: 'probador',
+      productId: null,
+    })
   })
 
-  it('resuelve catálogo y el id de producto del hash', () => {
+  it('mantiene las rutas de catálogo, login y registro', () => {
+    expect(readAppRoute('/catalogo', '#8')).toEqual({
+      name: 'catalogo',
+      productId: 8,
+    })
     expect(readAppRoute('/catalogo', '')).toEqual({
       name: 'catalogo',
       productId: null,
     })
-    expect(readAppRoute('/', '#catalogo')).toEqual({
-      name: 'catalogo',
-      productId: null,
-    })
-    expect(readAppRoute('/catalogo', '#12')).toEqual({
-      name: 'catalogo',
-      productId: 12,
-    })
-  })
-})
-
-describe('productIdFromHash e isCatalogRoute', () => {
-  it('ignora hashes vacíos o no numéricos', () => {
-    expect(productIdFromHash('')).toBeNull()
-    expect(productIdFromHash('#catalogo')).toBeNull()
-    expect(productIdFromHash('#0')).toBeNull()
-    expect(productIdFromHash('#abc')).toBeNull()
-    expect(productIdFromHash('#7')).toBe(7)
+    expect(readAppRoute('/login', '')).toEqual({ name: 'login' })
+    expect(readAppRoute('/', '')).toEqual({ name: 'registro' })
   })
 
-  it('distingue la ruta de catálogo', () => {
-    expect(isCatalogRoute({ name: 'catalogo', productId: null })).toBe(true)
-    expect(isCatalogRoute({ name: 'login' })).toBe(false)
-    expect(isCatalogRoute({ name: 'registro' })).toBe(false)
+  it('protege catálogo y probador, y deja libre el registro', () => {
+    expect(isProtectedRoute({ name: 'probador', productId: 3 })).toBe(true)
+    expect(isProtectedRoute({ name: 'catalogo', productId: null })).toBe(true)
+    expect(isProtectedRoute({ name: 'registro' })).toBe(false)
+    expect(isProtectedRoute({ name: 'login' })).toBe(false)
   })
 })

@@ -59,6 +59,10 @@ export function ProductDetail({ product }: ProductDetailProps) {
             ))}
           </dl>
         ) : null}
+
+        <a className="btn product-detail__try-on" href={`/probador#${product.id}`}>
+          Probar virtualmente
+        </a>
       </div>
     </article>
   )

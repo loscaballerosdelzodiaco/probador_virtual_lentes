@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
-  isCatalogRoute,
+  isProtectedRoute,
   readAppRoute,
   replaceLocation,
   type AppRoute,
@@ -9,6 +9,9 @@ import {
 import { CatalogPage } from './pages/CatalogPage'
 import { LoginPage } from './pages/LoginPage'
 import { RegistroPage } from './pages/RegistroPage'
+import { getTryOnModels } from './lib/tryOn/tryOnService'
+import type { TryOnModel } from './lib/tryOn/types'
+import { TryOnPage } from './pages/TryOnPage'
 import {
   SESSION_ERROR_MESSAGE,
   getCurrentSession,
@@ -22,6 +25,7 @@ function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [tryOnModels, setTryOnModels] = useState<TryOnModel[]>([])
 
   useEffect(() => {
     const syncRoute = () => setRoute(readAppRoute())
@@ -67,7 +71,7 @@ function App() {
   useEffect(() => {
     if (authLoading) return
 
-    if ((!session || authError) && isCatalogRoute(route)) {
+    if ((!session || authError) && isProtectedRoute(route)) {
       replaceLocation('/login')
       return
     }
@@ -76,6 +80,28 @@ function App() {
       replaceLocation('/catalogo')
     }
   }, [authError, authLoading, route, session])
+
+  const canOpenCatalog = Boolean(session) && !authError && !authLoading
+
+  useEffect(() => {
+    if (!canOpenCatalog || route.name !== 'probador') return
+
+    let active = true
+    getTryOnModels()
+      .then((rows) => {
+        if (!active) return
+        setTryOnModels(rows)
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        console.error(error)
+        setTryOnModels([])
+      })
+
+    return () => {
+      active = false
+    }
+  }, [canOpenCatalog, route.name])
 
   async function handleSignOut() {
     try {
@@ -89,8 +115,6 @@ function App() {
       replaceLocation('/')
     }
   }
-
-  const canOpenCatalog = Boolean(session) && !authError && !authLoading
 
   return (
     <>
@@ -166,7 +190,13 @@ function App() {
           />
         ) : null}
 
-        {!authLoading && canOpenCatalog ? <CatalogPage /> : null}
+        {!authLoading && canOpenCatalog && route.name === 'probador' ? (
+          <TryOnPage productId={route.productId} models={tryOnModels} />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name !== 'probador' ? (
+          <CatalogPage />
+        ) : null}
       </main>
 
       <footer className="site-footer">

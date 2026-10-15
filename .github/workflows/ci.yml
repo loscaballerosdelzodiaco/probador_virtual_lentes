@@ -2,13 +2,24 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'Sprint[0-9]*'
+      - 'Sprint[0-9]*/**'
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - 'Sprint[0-9]*'
+      - 'Sprint[0-9]*/**'
 
 defaults:
   run:
     working-directory: fudem-app
+
+env:
+  VITE_SUPABASE_URL: https://example.supabase.co
+  VITE_SUPABASE_ANON_KEY: test-anon-key
+  VITE_SUPABASE_PUBLISHABLE_KEY: test-publishable-key
 
 jobs:
   build:
