@@ -7,7 +7,7 @@ import {
   sanitizeNombreArchivo,
   ubicacionPerteneceAlUsuario,
   uploadDocumentoFile,
-  validateDocumentoFile,
+  validateDocumentoContenido,
 } from '../lib/documentoStorage'
 import { supabase } from '../lib/supabase'
 
@@ -32,7 +32,6 @@ export type DocumentoCliente = {
 }
 
 export type NuevoDocumento = {
-  usuario_id: string
   nombre_archivo: string
   tipo: TipoDocumento
   ubicacion_archivo: string
@@ -61,21 +60,19 @@ export const DOCUMENTO_REGISTRO_ERROR_MESSAGE =
 
 export function buildDocumentoInsert(documento: NuevoDocumento) {
   return {
-    usuario_id: documento.usuario_id,
     nombre_archivo: documento.nombre_archivo.trim(),
     tipo: documento.tipo,
     ubicacion_archivo: documento.ubicacion_archivo.trim(),
-    estado_recepcion: 'pendiente' as const,
+    estado_recepcion: 'recibida' as const,
   }
 }
 
-export async function listarDocumentos(
-  usuarioId: string,
-): Promise<DocumentoCliente[]> {
+export async function listarDocumentos(): Promise<DocumentoCliente[]> {
+  await requireUsuarioId()
+
   const { data, error } = await supabase
     .from(DOCUMENTO_TABLE)
     .select(DOCUMENTO_COLUMNS)
-    .eq('usuario_id', usuarioId)
     .order('fecha_carga', { ascending: false })
     .returns<DocumentoCliente[]>()
 
@@ -107,7 +104,7 @@ export async function guardarDocumento(
   tipo: TipoDocumento,
   file: File,
 ): Promise<DocumentoCliente> {
-  const formatoError = validateDocumentoFile(file)
+  const formatoError = await validateDocumentoContenido(file)
   if (formatoError) {
     throw new Error(formatoError)
   }
@@ -118,7 +115,6 @@ export async function guardarDocumento(
 
   try {
     return await registrarDocumento({
-      usuario_id: usuarioId,
       nombre_archivo: sanitizeNombreArchivo(file.name),
       tipo,
       ubicacion_archivo: ubicacionArchivo,

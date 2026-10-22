@@ -12,6 +12,7 @@ import {
   sanitizeNombreArchivo,
   ubicacionPerteneceAlUsuario,
   uploadDocumentoFile,
+  validateDocumentoContenido,
   validateDocumentoFile,
 } from '../lib/documentoStorage'
 
@@ -38,7 +39,13 @@ describe('documentoStorage', () => {
   it('acepta PDF e imagen y rechaza otros formatos o un archivo demasiado grande', () => {
     expect(validateDocumentoFile(pdfFile())).toBeNull()
     expect(
-      validateDocumentoFile(new File(['x'], 'foto.png', { type: 'image/png' })),
+      validateDocumentoFile(
+        new File(
+          [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+          'foto.png',
+          { type: 'image/png' },
+        ),
+      ),
     ).toBeNull()
     expect(
       validateDocumentoFile(new File(['x'], 'nota.txt', { type: 'text/plain' })),
@@ -46,6 +53,15 @@ describe('documentoStorage', () => {
     const tooBig = new File(['x'], 'grande.pdf', { type: 'application/pdf' })
     Object.defineProperty(tooBig, 'size', { value: MAX_DOCUMENTO_BYTES + 1 })
     expect(validateDocumentoFile(tooBig)).toBe(DOCUMENTO_SIZE_ERROR_MESSAGE)
+  })
+
+  it('rechaza una imagen cuyo contenido no coincide con el tipo', async () => {
+    await expect(
+      validateDocumentoContenido(
+        new File(['no es png'], 'foto.png', { type: 'image/png' }),
+      ),
+    ).resolves.toBe(DOCUMENTO_FORMAT_ERROR_MESSAGE)
+    await expect(validateDocumentoContenido(pdfFile())).resolves.toBeNull()
   })
 
   it('arma una ruta privada bajo el id del usuario y limpia el nombre', () => {

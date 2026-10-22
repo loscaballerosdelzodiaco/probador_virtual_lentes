@@ -20,12 +20,26 @@ const TIPO_LABEL: Record<TipoDocumento, string> = {
   examen: 'Examen',
 }
 
-type DocumentosPageProps = {
-  usuarioId: string
-}
+const TIPO_OPCIONES: Array<{
+  value: TipoDocumento
+  title: string
+  description: string
+}> = [
+  {
+    value: 'receta',
+    title: 'Receta',
+    description: 'Indicación óptica para armar los lentes.',
+  },
+  {
+    value: 'examen',
+    title: 'Examen',
+    description: 'Resultado de la evaluación visual.',
+  },
+]
 
-export function DocumentosPage({ usuarioId }: DocumentosPageProps) {
+export function DocumentosPage() {
   const [documentos, setDocumentos] = useState<DocumentoCliente[]>([])
+  const [tipo, setTipo] = useState<TipoDocumento>('receta')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -35,7 +49,7 @@ export function DocumentosPage({ usuarioId }: DocumentosPageProps) {
   useEffect(() => {
     let active = true
 
-    listarDocumentos(usuarioId)
+    listarDocumentos()
       .then((rows) => {
         if (!active) return
         setDocumentos(rows)
@@ -54,22 +68,16 @@ export function DocumentosPage({ usuarioId }: DocumentosPageProps) {
     return () => {
       active = false
     }
-  }, [usuarioId])
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isSubmitting) return
 
     const form = event.currentTarget
-    const data = new FormData(form)
-    const tipo = String(data.get('tipo')) as TipoDocumento
     const archivoInput = form.elements.namedItem('archivo')
     const file =
       archivoInput instanceof HTMLInputElement ? archivoInput.files?.[0] : null
-    if (tipo !== 'receta' && tipo !== 'examen') {
-      setFormError('Elige si el archivo es una receta o un examen.')
-      return
-    }
     if (!file) {
       setFormError('Selecciona un PDF o una imagen para continuar.')
       return
@@ -82,8 +90,9 @@ export function DocumentosPage({ usuarioId }: DocumentosPageProps) {
     try {
       const creado = await guardarDocumento(tipo, file)
       setDocumentos((current) => [creado, ...current])
-      setStatusMessage('Archivo guardado. Quedó pendiente de validación.')
+      setStatusMessage('Archivo recibido y guardado.')
       form.reset()
+      setTipo('receta')
     } catch (error: unknown) {
       setFormError(
         error instanceof Error ? error.message : DOCUMENTO_REGISTRO_ERROR_MESSAGE,
@@ -120,21 +129,39 @@ export function DocumentosPage({ usuarioId }: DocumentosPageProps) {
         </nav>
         <h1>Recetas y exámenes</h1>
         <p>
-          Sube un PDF o una imagen. El archivo queda privado: solo tú puedes
-          abrirlo mientras tu sesión esté activa.
+          Sube un PDF o una imagen. El archivo queda privado y se asocia a tu
+          cuenta automáticamente.
         </p>
 
         <form className="auth-form documentos-form" onSubmit={handleSubmit} noValidate>
-          <fieldset className="auth-form__field">
+          <fieldset className="documentos-tipo">
             <legend>Tipo de archivo</legend>
-            <label>
-              <input type="radio" name="tipo" value="receta" defaultChecked disabled={isSubmitting} />
-              Receta
-            </label>
-            <label>
-              <input type="radio" name="tipo" value="examen" disabled={isSubmitting} />
-              Examen
-            </label>
+            <div className="documentos-tipo__grid">
+              {TIPO_OPCIONES.map((opcion) => {
+                const selected = tipo === opcion.value
+                return (
+                  <label
+                    key={opcion.value}
+                    className={
+                      selected
+                        ? 'documentos-tipo__card is-selected'
+                        : 'documentos-tipo__card'
+                    }
+                  >
+                    <input
+                      type="radio"
+                      name="tipo"
+                      value={opcion.value}
+                      checked={selected}
+                      disabled={isSubmitting}
+                      onChange={() => setTipo(opcion.value)}
+                    />
+                    <span className="documentos-tipo__title">{opcion.title}</span>
+                    <span className="documentos-tipo__hint">{opcion.description}</span>
+                  </label>
+                )
+              })}
+            </div>
           </fieldset>
           <div className="auth-form__field">
             <label htmlFor="documento-archivo">Archivo</label>
@@ -149,7 +176,7 @@ export function DocumentosPage({ usuarioId }: DocumentosPageProps) {
             <p>PDF, JPG, PNG o WEBP. Máximo 10 MB.</p>
           </div>
           <button className="btn" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Guardando…' : 'Guardar archivo'}
+            {isSubmitting ? 'Recibiendo…' : 'Recibir archivo'}
           </button>
         </form>
 

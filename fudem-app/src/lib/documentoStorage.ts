@@ -69,9 +69,55 @@ export function mimeOfDocumento(file: File): string | null {
   return EXTENSION_TO_MIME[extensionOf(file.name)] ?? null
 }
 
+function bytesStartWith(bytes: Uint8Array, signature: number[]): boolean {
+  if (bytes.length < signature.length) return false
+  return signature.every((value, index) => bytes[index] === value)
+}
+
+export function contenidoCoincideConMime(bytes: Uint8Array, mime: string): boolean {
+  if (mime === 'application/pdf') {
+    return bytesStartWith(bytes, [0x25, 0x50, 0x44, 0x46])
+  }
+  if (mime === 'image/jpeg') {
+    return bytesStartWith(bytes, [0xff, 0xd8, 0xff])
+  }
+  if (mime === 'image/png') {
+    return bytesStartWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+  }
+  if (mime === 'image/webp') {
+    return (
+      bytesStartWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+      bytes.length >= 12 &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    )
+  }
+  return false
+}
+
 export function validateDocumentoFile(file: File): string | null {
   if (!mimeOfDocumento(file)) return DOCUMENTO_FORMAT_ERROR_MESSAGE
-  if (file.size > MAX_DOCUMENTO_BYTES) return DOCUMENTO_SIZE_ERROR_MESSAGE
+  if (file.size <= 0 || file.size > MAX_DOCUMENTO_BYTES) {
+    return file.size > MAX_DOCUMENTO_BYTES
+      ? DOCUMENTO_SIZE_ERROR_MESSAGE
+      : DOCUMENTO_FORMAT_ERROR_MESSAGE
+  }
+  return null
+}
+
+export async function validateDocumentoContenido(file: File): Promise<string | null> {
+  const formatoError = validateDocumentoFile(file)
+  if (formatoError) return formatoError
+
+  const mime = mimeOfDocumento(file)
+  if (!mime) return DOCUMENTO_FORMAT_ERROR_MESSAGE
+
+  const header = new Uint8Array(await file.slice(0, 16).arrayBuffer())
+  if (!contenidoCoincideConMime(header, mime)) {
+    return DOCUMENTO_FORMAT_ERROR_MESSAGE
+  }
   return null
 }
 

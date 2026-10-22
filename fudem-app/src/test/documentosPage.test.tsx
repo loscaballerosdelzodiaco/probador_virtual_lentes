@@ -39,7 +39,7 @@ describe('DocumentosPage', () => {
 
   it('muestra un aviso amigable si falla la carga', async () => {
     vi.mocked(listarDocumentos).mockRejectedValue(new Error('JWT expired'))
-    render(<DocumentosPage usuarioId={usuarioId} />)
+    render(<DocumentosPage />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       DOCUMENTOS_LOAD_ERROR_MESSAGE,
@@ -47,23 +47,37 @@ describe('DocumentosPage', () => {
     expect(screen.queryByText(/JWT expired/)).not.toBeInTheDocument()
   })
 
+  it('permite elegir receta o examen en tarjetas', async () => {
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    const receta = await screen.findByRole('radio', { name: /Receta/i })
+    const examen = screen.getByRole('radio', { name: /Examen/i })
+    expect(receta).toBeChecked()
+    expect(examen).not.toBeChecked()
+
+    await user.click(examen)
+    expect(examen).toBeChecked()
+    expect(receta).not.toBeChecked()
+  })
+
   it('muestra el error de almacenamiento al guardar', async () => {
     vi.mocked(guardarDocumento).mockRejectedValue(
       new Error(DOCUMENTO_STORAGE_ERROR_MESSAGE),
     )
     const user = userEvent.setup()
-    render(<DocumentosPage usuarioId={usuarioId} />)
+    render(<DocumentosPage />)
 
     await screen.findByText('Todavía no has cargado recetas ni exámenes.')
     chooseFile(new File(['jpeg'], 'receta.jpg', { type: 'image/jpeg' }))
-    await user.click(screen.getByRole('button', { name: 'Guardar archivo' }))
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       DOCUMENTO_STORAGE_ERROR_MESSAGE,
     )
   })
 
-  it('lista el archivo guardado sin exponer la ruta de Storage', async () => {
+  it('lista el archivo recibido sin exponer la ruta de Storage', async () => {
     vi.mocked(guardarDocumento).mockResolvedValue({
       id: 9,
       usuario_id: usuarioId,
@@ -71,19 +85,20 @@ describe('DocumentosPage', () => {
       tipo: 'receta',
       fecha_carga: '2026-10-22T04:00:00.000Z',
       ubicacion_archivo: `${usuarioId}/receta/secret.pdf`,
-      estado_recepcion: 'pendiente',
+      estado_recepcion: 'recibida',
     })
     const user = userEvent.setup()
-    render(<DocumentosPage usuarioId={usuarioId} />)
+    render(<DocumentosPage />)
 
     await screen.findByText('Todavía no has cargado recetas ni exámenes.')
     chooseFile(new File(['jpeg'], 'receta.jpg', { type: 'image/jpeg' }))
-    await user.click(screen.getByRole('button', { name: 'Guardar archivo' }))
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
 
     expect(await screen.findByText(/receta.pdf/)).toBeInTheDocument()
+    expect(screen.getByText(/Recibida/)).toBeInTheDocument()
     expect(screen.queryByText(/secret\.pdf/)).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(guardarDocumento).toHaveBeenCalled()
+      expect(guardarDocumento).toHaveBeenCalledWith('receta', expect.any(File))
     })
   })
 })

@@ -205,8 +205,8 @@ function App() {
           <TryOnPage productId={route.productId} models={tryOnModels} />
         ) : null}
 
-        {!authLoading && canOpenCatalog && route.name === 'documentos' && session ? (
-          <DocumentosPage usuarioId={session.user.id} />
+        {!authLoading && canOpenCatalog && route.name === 'documentos' ? (
+          <DocumentosPage />
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'catalogo' ? (

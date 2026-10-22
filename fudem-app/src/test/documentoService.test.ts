@@ -36,46 +36,59 @@ const documento = {
   tipo: 'receta' as const,
   fecha_carga: '2026-10-21T18:00:00.000Z',
   ubicacion_archivo: `${usuarioId}/receta.pdf`,
-  estado_recepcion: 'pendiente' as const,
+  estado_recepcion: 'recibida' as const,
+}
+
+function mockSesion() {
+  vi.mocked(supabase.auth.getUser).mockResolvedValue({
+    data: { user: { id: usuarioId } },
+    error: null,
+  } as never)
 }
 
 describe('documentoService', () => {
   beforeEach(() => {
     vi.mocked(supabase.from).mockReset()
+    vi.mocked(supabase.storage.from).mockReset()
+    vi.mocked(supabase.auth.getUser).mockReset()
   })
 
-  it('registra el archivo como pendiente y conserva la ruta del usuario', () => {
+  it('arma el insert como recibida y sin un usuario_id del cliente', () => {
     expect(
       buildDocumentoInsert({
-        usuario_id: usuarioId,
         nombre_archivo: ' receta.pdf ',
         tipo: 'examen',
         ubicacion_archivo: ` ${usuarioId}/examen.webp `,
       }),
     ).toEqual({
-      usuario_id: usuarioId,
       nombre_archivo: 'receta.pdf',
       tipo: 'examen',
       ubicacion_archivo: `${usuarioId}/examen.webp`,
-      estado_recepcion: 'pendiente',
+      estado_recepcion: 'recibida',
     })
+    expect(buildDocumentoInsert({
+      nombre_archivo: 'receta.pdf',
+      tipo: 'receta',
+      ubicacion_archivo: `${usuarioId}/receta.pdf`,
+    })).not.toHaveProperty('usuario_id')
   })
 
-  it('lista los documentos del usuario de más reciente a más antiguo', async () => {
+  it('lista documentos de la sesión, sin un id enviado por el cliente', async () => {
+    mockSesion()
     const order = vi.fn().mockReturnValue({
       returns: vi.fn().mockResolvedValue({ data: [documento], error: null }),
     })
-    const eq = vi.fn().mockReturnValue({ order })
-    const select = vi.fn().mockReturnValue({ eq })
+    const select = vi.fn().mockReturnValue({ order })
     vi.mocked(supabase.from).mockReturnValue({ select } as never)
 
-    await expect(listarDocumentos(usuarioId)).resolves.toEqual([documento])
+    await expect(listarDocumentos()).resolves.toEqual([documento])
+    expect(supabase.auth.getUser).toHaveBeenCalled()
     expect(supabase.from).toHaveBeenCalledWith('documento')
-    expect(eq).toHaveBeenCalledWith('usuario_id', usuarioId)
     expect(order).toHaveBeenCalledWith('fecha_carga', { ascending: false })
   })
 
   it('explica el fallo al cargar documentos sin el detalle técnico', async () => {
+    mockSesion()
     const order = vi.fn().mockReturnValue({
       returns: vi.fn().mockResolvedValue({
         data: null,
@@ -83,17 +96,13 @@ describe('documentoService', () => {
       }),
     })
     vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ order }),
-      }),
+      select: vi.fn().mockReturnValue({ order }),
     } as never)
 
-    await expect(listarDocumentos(usuarioId)).rejects.toThrow(
-      DOCUMENTOS_LOAD_ERROR_MESSAGE,
-    )
+    await expect(listarDocumentos()).rejects.toThrow(DOCUMENTOS_LOAD_ERROR_MESSAGE)
   })
 
-  it('inserta el documento pendiente y devuelve la fila creada', async () => {
+  it('inserta el documento recibido y devuelve la fila creada', async () => {
     const single = vi.fn().mockResolvedValue({ data: documento, error: null })
     const insert = vi.fn().mockReturnValue({
       select: vi.fn().mockReturnValue({
@@ -104,19 +113,16 @@ describe('documentoService', () => {
 
     await expect(
       registrarDocumento({
-        usuario_id: usuarioId,
         nombre_archivo: 'receta.pdf',
         tipo: 'receta',
         ubicacion_archivo: documento.ubicacion_archivo,
       }),
     ).resolves.toEqual(documento)
-    expect(supabase.from).toHaveBeenCalledWith('documento')
     expect(insert).toHaveBeenCalledWith({
-      usuario_id: usuarioId,
       nombre_archivo: 'receta.pdf',
       tipo: 'receta',
       ubicacion_archivo: documento.ubicacion_archivo,
-      estado_recepcion: 'pendiente',
+      estado_recepcion: 'recibida',
     })
   })
 
@@ -136,7 +142,6 @@ describe('documentoService', () => {
 
     await expect(
       registrarDocumento({
-        usuario_id: usuarioId,
         nombre_archivo: 'receta.pdf',
         tipo: 'receta',
         ubicacion_archivo: documento.ubicacion_archivo,
@@ -158,26 +163,22 @@ describe('documentoService', () => {
     expect(supabase.from).toHaveBeenCalledWith('validacion_documento')
   })
 
-  it('sube el archivo y luego registra la fila; si el registro falla borra el objeto', async () => {
-    vi.mocked(supabase.auth.getUser).mockResolvedValue({
-      data: { user: { id: usuarioId } },
-      error: null,
-    } as never)
+  it('marca recibida solo si el almacenamiento y el registro terminan; si el registro falla borra el objeto', async () => {
+    mockSesion()
     const upload = vi.fn().mockResolvedValue({ data: { path: 'x' }, error: null })
     const remove = vi.fn().mockResolvedValue({ data: [], error: null })
     vi.mocked(supabase.storage.from).mockReturnValue({ upload, remove } as never)
-    vi.mocked(supabase.from).mockReturnValue({
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          returns: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'insert failed' },
-            }),
+    const insert = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        returns: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'insert failed' },
           }),
         }),
       }),
-    } as never)
+    })
+    vi.mocked(supabase.from).mockReturnValue({ insert } as never)
 
     await expect(
       guardarDocumento(
@@ -186,14 +187,14 @@ describe('documentoService', () => {
       ),
     ).rejects.toThrow(DOCUMENTO_REGISTRO_ERROR_MESSAGE)
     expect(upload).toHaveBeenCalled()
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ estado_recepcion: 'recibida' }),
+    )
     expect(remove).toHaveBeenCalled()
   })
 
   it('no descarga un archivo de otro usuario', async () => {
-    vi.mocked(supabase.auth.getUser).mockResolvedValue({
-      data: { user: { id: usuarioId } },
-      error: null,
-    } as never)
+    mockSesion()
 
     await expect(
       descargarDocumento({

@@ -10,3 +10,5 @@ Si el SQL de `supabase/migrations/20261022041219_documento_cliente.sql` ya se ej
 2. Límite 10 MB. MIME: `application/pdf`, `image/jpeg`, `image/png`, `image/webp`.
 3. Políticas: el usuario autenticado solo opera sobre objetos cuya primera carpeta es su `auth.uid()`.
 4. El cliente abre el archivo con `download()` (blob en el navegador), no con un enlace público.
+5. Tras validar el archivo y guardarlo, el registro queda en `recibida`. `usuario_id` lo asigna la sesión (`auth.uid()`), no un id enviado por el cliente.
+6. Ejecuta también `supabase/migrations/20261022043808_recibir_documento.sql` si la tabla ya existía.
