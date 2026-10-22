@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '../lib/supabase'
 import {
+  DOCUMENTO_ACCESS_ERROR_MESSAGE,
+  DOCUMENTO_FORMAT_ERROR_MESSAGE,
+} from '../lib/documentoStorage'
+import {
   DOCUMENTO_REGISTRO_ERROR_MESSAGE,
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
   buildDocumentoInsert,
+  descargarDocumento,
+  guardarDocumento,
   listarDocumentos,
   listarValidacion,
   registrarDocumento,
@@ -12,6 +18,12 @@ import {
 vi.mock('../lib/supabase', () => ({
   supabase: {
     from: vi.fn(),
+    storage: {
+      from: vi.fn(),
+    },
+    auth: {
+      getUser: vi.fn(),
+    },
   },
 }))
 
@@ -144,5 +156,62 @@ describe('documentoService', () => {
 
     await expect(listarValidacion(1)).resolves.toBeNull()
     expect(supabase.from).toHaveBeenCalledWith('validacion_documento')
+  })
+
+  it('sube el archivo y luego registra la fila; si el registro falla borra el objeto', async () => {
+    vi.mocked(supabase.auth.getUser).mockResolvedValue({
+      data: { user: { id: usuarioId } },
+      error: null,
+    } as never)
+    const upload = vi.fn().mockResolvedValue({ data: { path: 'x' }, error: null })
+    const remove = vi.fn().mockResolvedValue({ data: [], error: null })
+    vi.mocked(supabase.storage.from).mockReturnValue({ upload, remove } as never)
+    vi.mocked(supabase.from).mockReturnValue({
+      insert: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          returns: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: 'insert failed' },
+            }),
+          }),
+        }),
+      }),
+    } as never)
+
+    await expect(
+      guardarDocumento(
+        'receta',
+        new File(['%PDF-1.4'], 'receta.pdf', { type: 'application/pdf' }),
+      ),
+    ).rejects.toThrow(DOCUMENTO_REGISTRO_ERROR_MESSAGE)
+    expect(upload).toHaveBeenCalled()
+    expect(remove).toHaveBeenCalled()
+  })
+
+  it('no descarga un archivo de otro usuario', async () => {
+    vi.mocked(supabase.auth.getUser).mockResolvedValue({
+      data: { user: { id: usuarioId } },
+      error: null,
+    } as never)
+
+    await expect(
+      descargarDocumento({
+        ...documento,
+        usuario_id: 'otro-usuario',
+        ubicacion_archivo: 'otro-usuario/receta.pdf',
+      }),
+    ).rejects.toThrow(DOCUMENTO_ACCESS_ERROR_MESSAGE)
+    expect(supabase.storage.from).not.toHaveBeenCalled()
+  })
+
+  it('rechaza un formato no permitido antes de llamar a Storage', async () => {
+    await expect(
+      guardarDocumento(
+        'examen',
+        new File(['hola'], 'nota.txt', { type: 'text/plain' }),
+      ),
+    ).rejects.toThrow(DOCUMENTO_FORMAT_ERROR_MESSAGE)
+    expect(supabase.storage.from).not.toHaveBeenCalled()
   })
 })

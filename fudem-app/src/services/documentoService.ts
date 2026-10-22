@@ -1,3 +1,14 @@
+import {
+  DOCUMENTO_ACCESS_ERROR_MESSAGE,
+  buildUbicacionArchivo,
+  downloadDocumentoFile,
+  removeDocumentoFile,
+  requireUsuarioId,
+  sanitizeNombreArchivo,
+  ubicacionPerteneceAlUsuario,
+  uploadDocumentoFile,
+  validateDocumentoFile,
+} from '../lib/documentoStorage'
 import { supabase } from '../lib/supabase'
 
 export const DOCUMENTO_TABLE = 'documento'
@@ -90,6 +101,44 @@ export async function registrarDocumento(
   }
 
   return data
+}
+
+export async function guardarDocumento(
+  tipo: TipoDocumento,
+  file: File,
+): Promise<DocumentoCliente> {
+  const formatoError = validateDocumentoFile(file)
+  if (formatoError) {
+    throw new Error(formatoError)
+  }
+
+  const usuarioId = await requireUsuarioId()
+  const ubicacionArchivo = buildUbicacionArchivo(usuarioId, tipo, file)
+  await uploadDocumentoFile(ubicacionArchivo, file)
+
+  try {
+    return await registrarDocumento({
+      usuario_id: usuarioId,
+      nombre_archivo: sanitizeNombreArchivo(file.name),
+      tipo,
+      ubicacion_archivo: ubicacionArchivo,
+    })
+  } catch (error) {
+    await removeDocumentoFile(ubicacionArchivo)
+    throw error
+  }
+}
+
+export async function descargarDocumento(documento: DocumentoCliente): Promise<Blob> {
+  const usuarioId = await requireUsuarioId()
+  if (
+    documento.usuario_id !== usuarioId ||
+    !ubicacionPerteneceAlUsuario(usuarioId, documento.ubicacion_archivo)
+  ) {
+    throw new Error(DOCUMENTO_ACCESS_ERROR_MESSAGE)
+  }
+
+  return downloadDocumentoFile(documento.ubicacion_archivo)
 }
 
 export async function listarValidacion(

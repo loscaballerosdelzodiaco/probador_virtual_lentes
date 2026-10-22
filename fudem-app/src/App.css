@@ -424,6 +424,40 @@ main {
   font-weight: var(--weight-semibold);
 }
 
+.documentos-form fieldset {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.documentos-form fieldset label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.documentos-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.documentos-list li {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.documentos-list p {
+  margin: 0;
+}
+
 .auth-form {
   display: grid;
   gap: var(--space-4);

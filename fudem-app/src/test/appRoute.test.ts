@@ -39,12 +39,14 @@ describe('readAppRoute', () => {
       productId: null,
     })
     expect(readAppRoute('/login', '')).toEqual({ name: 'login' })
+    expect(readAppRoute('/documentos', '')).toEqual({ name: 'documentos' })
     expect(readAppRoute('/', '')).toEqual({ name: 'registro' })
   })
 
-  it('protege catálogo y probador, y deja libre el registro', () => {
+  it('protege catálogo, probador y documentos, y deja libre el registro', () => {
     expect(isProtectedRoute({ name: 'probador', productId: 3 })).toBe(true)
     expect(isProtectedRoute({ name: 'catalogo', productId: null })).toBe(true)
+    expect(isProtectedRoute({ name: 'documentos' })).toBe(true)
     expect(isProtectedRoute({ name: 'registro' })).toBe(false)
     expect(isProtectedRoute({ name: 'login' })).toBe(false)
   })
