@@ -2,6 +2,7 @@ import {
   CalidadInsuficienteError,
   evaluarCalidadArchivo,
 } from '../lib/documentoCalidad'
+import { DocumentoCargaError } from '../lib/documentoErrores'
 import {
   DOCUMENTO_ACCESS_ERROR_MESSAGE,
   buildUbicacionArchivo,
@@ -87,7 +88,9 @@ export async function listarDocumentos(): Promise<DocumentoCliente[]> {
     .returns<DocumentoCliente[]>()
 
   if (error) {
-    throw new Error(DOCUMENTOS_LOAD_ERROR_MESSAGE, { cause: error })
+    throw new DocumentoCargaError(DOCUMENTOS_LOAD_ERROR_MESSAGE, 'temporary', {
+      cause: error,
+    })
   }
 
   return data ?? []
@@ -104,7 +107,9 @@ export async function registrarDocumento(
     .single()
 
   if (error || !data) {
-    throw new Error(DOCUMENTO_REGISTRO_ERROR_MESSAGE, { cause: error })
+    throw new DocumentoCargaError(DOCUMENTO_REGISTRO_ERROR_MESSAGE, 'temporary', {
+      cause: error,
+    })
   }
 
   return data
@@ -116,7 +121,7 @@ export async function guardarDocumento(
 ): Promise<DocumentoCliente> {
   const local = await inspeccionarArchivoLocal(file)
   if (!local.ok) {
-    throw new Error(local.error)
+    throw new DocumentoCargaError(local.error, 'validation')
   }
 
   const calidad = await evaluarCalidadArchivo(file)
@@ -153,7 +158,7 @@ export async function descargarDocumento(documento: DocumentoCliente): Promise<B
     documento.usuario_id !== usuarioId ||
     !ubicacionPerteneceAlUsuario(usuarioId, documento.ubicacion_archivo)
   ) {
-    throw new Error(DOCUMENTO_ACCESS_ERROR_MESSAGE)
+    throw new DocumentoCargaError(DOCUMENTO_ACCESS_ERROR_MESSAGE, 'temporary')
   }
 
   return downloadDocumentoFile(documento.ubicacion_archivo)
@@ -170,7 +175,9 @@ export async function listarValidacion(
     .maybeSingle()
 
   if (error) {
-    throw new Error(DOCUMENTOS_LOAD_ERROR_MESSAGE, { cause: error })
+    throw new DocumentoCargaError(DOCUMENTOS_LOAD_ERROR_MESSAGE, 'temporary', {
+      cause: error,
+    })
   }
 
   return data

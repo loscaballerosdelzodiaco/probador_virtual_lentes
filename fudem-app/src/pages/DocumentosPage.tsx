@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import {
+  DOCUMENTO_TEMPORARY_HINT,
+  DOCUMENTO_VALIDATION_HINT,
+  clasificarErrorCarga,
+  type DocumentoErrorKind,
+} from '../lib/documentoErrores'
 import { MAX_DOCUMENTO_BYTES, validarArchivoDocumento } from '../lib/documentoStorage'
 import {
   DOCUMENTO_REGISTRO_ERROR_MESSAGE,
@@ -62,12 +68,16 @@ function etiquetaEnvio(submitting: boolean, reintentar: boolean, reemplazo: bool
 
 type EstadoCarga = 'pending' | 'selected' | 'uploading' | 'success' | 'error'
 
-const ESTADO_CARGA_LABEL: Record<EstadoCarga, string> = {
-  pending: 'Archivo pendiente de selección',
-  selected: 'Archivo seleccionado',
-  uploading: 'Carga en proceso',
-  success: 'Carga exitosa',
-  error: 'No se pudo cargar el archivo',
+function etiquetaEstadoCarga(
+  estado: EstadoCarga,
+  errorKind: DocumentoErrorKind | null,
+): string {
+  if (estado === 'pending') return 'Archivo pendiente de selección'
+  if (estado === 'selected') return 'Archivo seleccionado'
+  if (estado === 'uploading') return 'Carga en proceso'
+  if (estado === 'success') return 'Carga exitosa'
+  if (errorKind === 'validation') return 'El archivo no se puede usar'
+  return 'No se pudo cargar el archivo'
 }
 
 function formatFileSize(bytes: number): string {
@@ -103,6 +113,7 @@ export function DocumentosPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const [errorKind, setErrorKind] = useState<DocumentoErrorKind | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [reemplazando, setReemplazando] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -118,7 +129,11 @@ export function DocumentosPage() {
   const nombreEnCorreccion = recetaParaCorregir
     ? nombreArchivoVisible(recetaParaCorregir.nombre_archivo)
     : null
-  const puedeReintentar = uploadStatus === 'error' && selectedFile !== null && !isSubmitting
+  const puedeReintentar =
+    uploadStatus === 'error' &&
+    errorKind === 'temporary' &&
+    selectedFile !== null &&
+    !isSubmitting
 
   useEffect(() => {
     let active = true
@@ -155,6 +170,16 @@ export function DocumentosPage() {
     correccionRef.current?.focus()
   }, [reemplazando])
 
+  async function sincronizarDocumentos() {
+    try {
+      const rows = await listarDocumentos()
+      setDocumentos(rows)
+      setLoadError(null)
+    } catch (error: unknown) {
+      console.error(error)
+    }
+  }
+
   function clearFileInputs() {
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
@@ -169,12 +194,14 @@ export function DocumentosPage() {
       setSelectedFile(null)
       setRejectedName(file.name)
       setFormError(validationError)
+      setErrorKind('validation')
       setUploadStatus('error')
       return
     }
 
     setRejectedName(null)
     setFormError(null)
+    setErrorKind(null)
     setSelectedFile(file)
     setUploadStatus('selected')
   }
@@ -190,6 +217,7 @@ export function DocumentosPage() {
     setSelectedFile(null)
     setRejectedName(null)
     setFormError(null)
+    setErrorKind(null)
     setStatusMessage(null)
     setUploadStatus('pending')
   }
@@ -219,6 +247,7 @@ export function DocumentosPage() {
     if (!file) {
       setStatusMessage(null)
       setFormError(MISSING_FILE_MESSAGE)
+      setErrorKind('validation')
       setUploadStatus('error')
       return
     }
@@ -229,11 +258,13 @@ export function DocumentosPage() {
       setRejectedName(file.name)
       setStatusMessage(null)
       setFormError(validationError)
+      setErrorKind('validation')
       setUploadStatus('error')
       return
     }
 
     setFormError(null)
+    setErrorKind(null)
     setStatusMessage(null)
     setIsSubmitting(true)
     setUploadStatus('uploading')
@@ -241,7 +272,11 @@ export function DocumentosPage() {
 
     try {
       const creado = await guardarDocumento(tipoEnvio, file)
-      setDocumentos((current) => [creado, ...current])
+      await sincronizarDocumentos()
+      setDocumentos((current) => {
+        if (current.some((documento) => documento.id === creado.id)) return current
+        return [creado, ...current]
+      })
 
       if (creado.estado_recepcion !== 'recibida') {
         setFormError(
@@ -249,6 +284,7 @@ export function DocumentosPage() {
             ? RECETA_RECEPCION_INCOMPLETA_MESSAGE
             : EXAMEN_RECEPCION_INCOMPLETA_MESSAGE,
         )
+        setErrorKind('temporary')
         setUploadStatus('error')
         return
       }
@@ -265,10 +301,16 @@ export function DocumentosPage() {
       setTipo('receta')
       setUploadStatus('success')
     } catch (error: unknown) {
-      setFormError(
-        error instanceof Error ? error.message : DOCUMENTO_REGISTRO_ERROR_MESSAGE,
-      )
+      const clasificado = clasificarErrorCarga(error)
+      setFormError(clasificado.message || DOCUMENTO_REGISTRO_ERROR_MESSAGE)
+      setErrorKind(clasificado.kind)
       setUploadStatus('error')
+      if (clasificado.kind === 'validation') {
+        setRejectedName(file.name)
+        setSelectedFile(null)
+        clearFileInputs()
+      }
+      await sincronizarDocumentos()
     } finally {
       setIsSubmitting(false)
     }
@@ -287,9 +329,9 @@ export function DocumentosPage() {
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000)
     } catch (error: unknown) {
       console.error(error)
-      setFormError(
-        error instanceof Error ? error.message : DOCUMENTOS_LOAD_ERROR_MESSAGE,
-      )
+      const clasificado = clasificarErrorCarga(error)
+      setFormError(clasificado.message || DOCUMENTOS_LOAD_ERROR_MESSAGE)
+      setErrorKind(clasificado.kind)
     }
   }
 
@@ -354,11 +396,13 @@ export function DocumentosPage() {
           <div className="auth-form__field">
             <label htmlFor="documento-archivo">Archivo</label>
             <div
-              className={`documentos-upload is-${uploadStatus}`}
+              className={`documentos-upload is-${uploadStatus}${
+                uploadStatus === 'error' && errorKind ? ` is-error-${errorKind}` : ''
+              }`}
               aria-busy={uploadStatus === 'uploading'}
             >
               <p id="documento-estado" className="documentos-upload__status" role="status">
-                {ESTADO_CARGA_LABEL[uploadStatus]}
+                {etiquetaEstadoCarga(uploadStatus, errorKind)}
               </p>
               <p id="documento-formatos" className="documentos-upload__hint">
                 {`Formatos permitidos: PDF, JPG, PNG y WEBP. Tamaño máximo: ${MAX_DOCUMENTO_MB} MB.`}
@@ -447,7 +491,12 @@ export function DocumentosPage() {
 
         {formError ? (
           <p className="notice notice--error" role="alert">
-            {formError}
+            {formError}{' '}
+            {errorKind === 'validation'
+              ? DOCUMENTO_VALIDATION_HINT
+              : errorKind === 'temporary'
+                ? DOCUMENTO_TEMPORARY_HINT
+                : null}
           </p>
         ) : null}
         {statusMessage ? (

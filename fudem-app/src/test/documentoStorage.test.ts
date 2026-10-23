@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '../lib/supabase'
 import {
   DOCUMENTO_ACCESS_ERROR_MESSAGE,
+  DOCUMENTO_CONNECTION_ERROR_MESSAGE,
   DOCUMENTO_CORRUPT_ERROR_MESSAGE,
   DOCUMENTO_EXTENSION_ERROR_MESSAGE,
   DOCUMENTO_SIZE_ERROR_MESSAGE,
@@ -95,6 +96,17 @@ describe('documentoStorage', () => {
     expect(supabase.functions.invoke).toHaveBeenCalledWith(
       'validar-documento',
       expect.objectContaining({ body: expect.any(FormData) }),
+    )
+  })
+
+  it('explica un fallo de conexión al validar en el servidor', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: null,
+      error: { message: 'Failed to send a request to the Edge Function' },
+    } as never)
+
+    await expect(validarDocumentoEnServidor(pdfFile())).rejects.toThrow(
+      DOCUMENTO_CONNECTION_ERROR_MESSAGE,
     )
   })
 

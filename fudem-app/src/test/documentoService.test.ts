@@ -6,6 +6,7 @@ import {
   DOCUMENTO_CALIDAD_INSUFICIENTE,
   evaluarCalidadArchivo,
 } from '../lib/documentoCalidad'
+import { DocumentoCargaError } from '../lib/documentoErrores'
 import {
   DOCUMENTO_ACCESS_ERROR_MESSAGE,
   DOCUMENTO_FORMAT_ERROR_MESSAGE,
@@ -255,12 +256,12 @@ describe('documentoService', () => {
   })
 
   it('rechaza un formato no permitido antes de llamar a Storage', async () => {
-    await expect(
-      guardarDocumento(
-        'examen',
-        new File(['hola'], 'nota.txt', { type: 'text/plain' }),
-      ),
-    ).rejects.toThrow(DOCUMENTO_FORMAT_ERROR_MESSAGE)
+    const rechazo = guardarDocumento(
+      'examen',
+      new File(['hola'], 'nota.txt', { type: 'text/plain' }),
+    )
+    await expect(rechazo).rejects.toBeInstanceOf(DocumentoCargaError)
+    await expect(rechazo).rejects.toThrow(DOCUMENTO_FORMAT_ERROR_MESSAGE)
     expect(supabase.storage.from).not.toHaveBeenCalled()
     expect(supabase.functions.invoke).not.toHaveBeenCalled()
   })

@@ -5,6 +5,12 @@
  * con VITE_MAX_DOCUMENTO_BYTES (app) y MAX_DOCUMENTO_BYTES (función).
  */
 import {
+  DOCUMENTO_CONNECTION_ERROR_MESSAGE,
+  DocumentoCargaError,
+  isConnectionFailure,
+  isValidationMessage,
+} from './documentoErrores'
+import {
   DOCUMENTO_CORRUPT_ERROR_MESSAGE,
   DOCUMENTO_FORMAT_ERROR_MESSAGE,
   DOCUMENTO_SIZE_ERROR_MESSAGE,
@@ -27,6 +33,8 @@ export {
 
 export const DOCUMENTOS_BUCKET = 'documentos'
 export const VALIDAR_DOCUMENTO_FUNCTION = 'validar-documento'
+
+export { DOCUMENTO_CONNECTION_ERROR_MESSAGE } from './documentoErrores'
 
 export const DOCUMENTO_STORAGE_ERROR_MESSAGE =
   'No pudimos guardar el archivo. Inténtalo de nuevo en unos momentos.'
@@ -90,15 +98,33 @@ export function messageFromStorageError(error: {
   if (/401|403|jwt|unauthorized|not authorized|row-level|permission/i.test(text)) {
     return DOCUMENTO_ACCESS_ERROR_MESSAGE
   }
+  if (isConnectionFailure(error) || /timeout|unavailable|502|503|504/i.test(text)) {
+    return DOCUMENTO_CONNECTION_ERROR_MESSAGE
+  }
   return DOCUMENTO_STORAGE_ERROR_MESSAGE
 }
 
-async function messageFromFunctionFailure(
+function cargaErrorFromStorage(error: {
+  message?: string
+  statusCode?: string | number
+}): DocumentoCargaError {
+  const message = messageFromStorageError(error)
+  const kind =
+    message === DOCUMENTO_SIZE_ERROR_MESSAGE || message === DOCUMENTO_FORMAT_ERROR_MESSAGE
+      ? 'validation'
+      : 'temporary'
+  return new DocumentoCargaError(message, kind, { cause: error })
+}
+
+async function cargaErrorFromFunctionFailure(
   error: { message?: string; context?: Response } | null,
   data: unknown,
-): Promise<string> {
+): Promise<DocumentoCargaError> {
   if (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string') {
-    return data.error
+    return new DocumentoCargaError(
+      data.error,
+      isValidationMessage(data.error) ? 'validation' : 'temporary',
+    )
   }
 
   const response = error?.context
@@ -106,14 +132,29 @@ async function messageFromFunctionFailure(
     try {
       const body: unknown = await response.clone().json()
       if (body && typeof body === 'object' && 'error' in body && typeof body.error === 'string') {
-        return body.error
+        return new DocumentoCargaError(
+          body.error,
+          isValidationMessage(body.error) ? 'validation' : 'temporary',
+        )
       }
     } catch {
-      // El cuerpo no era JSON; se usa el mensaje genérico.
+      // El cuerpo no era JSON; se clasifica por la red o el código HTTP.
+    }
+
+    if (response.status >= 500) {
+      return new DocumentoCargaError(DOCUMENTO_CONNECTION_ERROR_MESSAGE, 'temporary')
     }
   }
 
-  return DOCUMENTO_CORRUPT_ERROR_MESSAGE
+  if (isConnectionFailure(error)) {
+    return new DocumentoCargaError(DOCUMENTO_CONNECTION_ERROR_MESSAGE, 'temporary', {
+      cause: error,
+    })
+  }
+
+  return new DocumentoCargaError(DOCUMENTO_CONNECTION_ERROR_MESSAGE, 'temporary', {
+    cause: error,
+  })
 }
 
 export async function validarDocumentoEnServidor(file: File): Promise<{
@@ -128,14 +169,14 @@ export async function validarDocumentoEnServidor(file: File): Promise<{
   })
 
   if (error || !data || typeof data !== 'object' || !('ok' in data) || data.ok !== true) {
-    throw new Error(await messageFromFunctionFailure(error, data))
+    throw await cargaErrorFromFunctionFailure(error, data)
   }
 
   const mime = 'mime' in data && typeof data.mime === 'string' ? data.mime : ''
   const extension =
     'extension' in data && typeof data.extension === 'string' ? data.extension : ''
   if (!mime || !extension) {
-    throw new Error(DOCUMENTO_CORRUPT_ERROR_MESSAGE)
+    throw new DocumentoCargaError(DOCUMENTO_CORRUPT_ERROR_MESSAGE, 'validation')
   }
 
   return { mime, extension }
@@ -144,7 +185,9 @@ export async function validarDocumentoEnServidor(file: File): Promise<{
 export async function requireUsuarioId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser()
   if (error || !data.user) {
-    throw new Error(DOCUMENTO_ACCESS_ERROR_MESSAGE, { cause: error })
+    throw new DocumentoCargaError(DOCUMENTO_ACCESS_ERROR_MESSAGE, 'temporary', {
+      cause: error,
+    })
   }
   return data.user.id
 }
@@ -161,7 +204,7 @@ export async function uploadDocumentoFile(
   })
 
   if (error) {
-    throw new Error(messageFromStorageError(error), { cause: error })
+    throw cargaErrorFromStorage(error)
   }
 }
 
@@ -178,8 +221,9 @@ export async function downloadDocumentoFile(ubicacionArchivo: string): Promise<B
     .download(ubicacionArchivo)
 
   if (error || !data) {
-    throw new Error(
+    throw new DocumentoCargaError(
       error ? messageFromStorageError(error) : DOCUMENTO_DOWNLOAD_ERROR_MESSAGE,
+      'temporary',
       { cause: error },
     )
   }

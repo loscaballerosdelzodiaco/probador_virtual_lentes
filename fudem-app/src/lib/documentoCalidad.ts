@@ -12,6 +12,7 @@
  * - Umbrales empíricos: pueden rechazar fotos válidas con poca luz o
  *   aceptar fotos borrosas con bordes fuertes.
  */
+import { DocumentoCargaError } from './documentoErrores'
 import { validarDocumentoBytes } from './documentoValidation'
 
 export const DOCUMENTO_CALIDAD_INSUFICIENTE = 'calidad_insuficiente' as const
@@ -236,12 +237,12 @@ export async function evaluarCalidadArchivo(file: File): Promise<ResultadoCalida
   }
 }
 
-export class CalidadInsuficienteError extends Error {
+export class CalidadInsuficienteError extends DocumentoCargaError {
   readonly estado = DOCUMENTO_CALIDAD_INSUFICIENTE
   readonly motivo: MotivoCalidad
 
   constructor(resultado: Extract<ResultadoCalidad, { ok: false }>) {
-    super(resultado.error)
+    super(resultado.error, 'validation')
     this.name = 'CalidadInsuficienteError'
     this.motivo = resultado.motivo
   }

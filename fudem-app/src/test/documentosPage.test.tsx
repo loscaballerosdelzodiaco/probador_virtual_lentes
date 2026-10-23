@@ -2,8 +2,18 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DocumentosPage } from '../pages/DocumentosPage'
-import { DOCUMENTO_CALIDAD_BORROSA_MESSAGE } from '../lib/documentoCalidad'
 import {
+  CalidadInsuficienteError,
+  DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+  DOCUMENTO_CALIDAD_INSUFICIENTE,
+} from '../lib/documentoCalidad'
+import {
+  DOCUMENTO_TEMPORARY_HINT,
+  DOCUMENTO_VALIDATION_HINT,
+} from '../lib/documentoErrores'
+import {
+  DOCUMENTO_CONNECTION_ERROR_MESSAGE,
+  DOCUMENTO_CORRUPT_ERROR_MESSAGE,
   DOCUMENTO_EXTENSION_ERROR_MESSAGE,
   DOCUMENTO_SIZE_ERROR_MESSAGE,
   DOCUMENTO_STORAGE_ERROR_MESSAGE,
@@ -108,6 +118,7 @@ describe('DocumentosPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       DOCUMENTO_STORAGE_ERROR_MESSAGE,
     )
+    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_TEMPORARY_HINT)
     expect(screen.getByText('No se pudo cargar el archivo')).toBeInTheDocument()
     expect(screen.getByText('receta.jpg')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled()
@@ -119,7 +130,12 @@ describe('DocumentosPage', () => {
 
   it('pide una imagen nueva si la calidad de la receta no alcanza', async () => {
     vi.mocked(guardarDocumento).mockRejectedValue(
-      new Error(DOCUMENTO_CALIDAD_BORROSA_MESSAGE),
+      new CalidadInsuficienteError({
+        ok: false,
+        estado: DOCUMENTO_CALIDAD_INSUFICIENTE,
+        motivo: 'borrosa',
+        error: DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+      }),
     )
     const user = userEvent.setup()
     render(<DocumentosPage />)
@@ -131,10 +147,14 @@ describe('DocumentosPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
     )
+    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_VALIDATION_HINT)
+    expect(screen.getByText('El archivo no se puede usar')).toBeInTheDocument()
+    expect(screen.getByText('Archivo no aceptado: receta.jpg')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Recibir archivo' })).toBeDisabled()
     expect(
       screen.queryByRole('heading', { name: 'Receta recibida' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled()
   })
 
   it('lista el archivo recibido sin exponer la ruta de Storage', async () => {
@@ -294,7 +314,9 @@ describe('DocumentosPage', () => {
       DOCUMENTO_EXTENSION_ERROR_MESSAGE,
     )
     expect(screen.getByText('Archivo no aceptado: receta.gif')).toBeInTheDocument()
-    expect(screen.getByText('No se pudo cargar el archivo')).toBeInTheDocument()
+    expect(screen.getByText('El archivo no se puede usar')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_VALIDATION_HINT)
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
     expect(guardarDocumento).not.toHaveBeenCalled()
 
     const tooBig = jpegFile('grande.jpg')
@@ -399,7 +421,7 @@ describe('DocumentosPage', () => {
       DOCUMENTO_EXTENSION_ERROR_MESSAGE,
     )
     expect(screen.getByText('Archivo no aceptado: receta.gif')).toBeInTheDocument()
-    expect(screen.getByText('No se pudo cargar el archivo')).toBeInTheDocument()
+    expect(screen.getByText('El archivo no se puede usar')).toBeInTheDocument()
     const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
     expect(confirmacion).toHaveTextContent('receta-ok.pdf')
     expect(confirmacion).not.toHaveTextContent('receta.gif')
@@ -434,5 +456,46 @@ describe('DocumentosPage', () => {
       screen.getByRole('status', { name: 'Confirmación de receta' }),
     ).not.toHaveTextContent('receta-ok.pdf')
     expect(guardarDocumento).toHaveBeenCalledTimes(2)
+  })
+
+  it('permite reintentar un fallo de conexión sin volver a elegir el archivo', async () => {
+    vi.mocked(guardarDocumento)
+      .mockRejectedValueOnce(new Error(DOCUMENTO_CONNECTION_ERROR_MESSAGE))
+      .mockResolvedValueOnce(documentoRecibido('receta.jpg', 'recibida', 21))
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await screen.findByText('Aún no hemos recibido una receta para tu compra.')
+    await chooseFile(user, jpegFile())
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      DOCUMENTO_CONNECTION_ERROR_MESSAGE,
+    )
+    expect(screen.getByText('receta.jpg')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Receta recibida' })).toBeInTheDocument()
+    expect(guardarDocumento).toHaveBeenCalledTimes(2)
+  })
+
+  it('pide otro archivo si el contenido está dañado', async () => {
+    vi.mocked(guardarDocumento).mockRejectedValue(new Error(DOCUMENTO_CORRUPT_ERROR_MESSAGE))
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await screen.findByText('Todavía no has cargado recetas ni exámenes.')
+    await chooseFile(user, jpegFile())
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(DOCUMENTO_CORRUPT_ERROR_MESSAGE)
+    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_VALIDATION_HINT)
+    expect(screen.getByText('El archivo no se puede usar')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Receta recibida' }),
+    ).not.toBeInTheDocument()
   })
 })
