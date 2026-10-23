@@ -21,6 +21,9 @@ vi.mock('../lib/supabase', () => ({
     storage: {
       from: vi.fn(),
     },
+    functions: {
+      invoke: vi.fn(),
+    },
     auth: {
       getUser: vi.fn(),
     },
@@ -50,6 +53,7 @@ describe('documentoService', () => {
   beforeEach(() => {
     vi.mocked(supabase.from).mockReset()
     vi.mocked(supabase.storage.from).mockReset()
+    vi.mocked(supabase.functions.invoke).mockReset()
     vi.mocked(supabase.auth.getUser).mockReset()
   })
 
@@ -165,6 +169,10 @@ describe('documentoService', () => {
 
   it('marca recibida solo si el almacenamiento y el registro terminan; si el registro falla borra el objeto', async () => {
     mockSesion()
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: { ok: true, mime: 'application/pdf', extension: 'pdf' },
+      error: null,
+    } as never)
     const upload = vi.fn().mockResolvedValue({ data: { path: 'x' }, error: null })
     const remove = vi.fn().mockResolvedValue({ data: [], error: null })
     vi.mocked(supabase.storage.from).mockReturnValue({ upload, remove } as never)
@@ -186,7 +194,11 @@ describe('documentoService', () => {
         new File(['%PDF-1.4'], 'receta.pdf', { type: 'application/pdf' }),
       ),
     ).rejects.toThrow(DOCUMENTO_REGISTRO_ERROR_MESSAGE)
+    expect(supabase.functions.invoke).toHaveBeenCalled()
     expect(upload).toHaveBeenCalled()
+    expect(upload.mock.calls[0][2]).toEqual(
+      expect.objectContaining({ contentType: 'application/pdf' }),
+    )
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({ estado_recepcion: 'recibida' }),
     )
@@ -214,5 +226,6 @@ describe('documentoService', () => {
       ),
     ).rejects.toThrow(DOCUMENTO_FORMAT_ERROR_MESSAGE)
     expect(supabase.storage.from).not.toHaveBeenCalled()
+    expect(supabase.functions.invoke).not.toHaveBeenCalled()
   })
 })

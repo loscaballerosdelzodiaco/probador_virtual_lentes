@@ -2,12 +2,13 @@ import {
   DOCUMENTO_ACCESS_ERROR_MESSAGE,
   buildUbicacionArchivo,
   downloadDocumentoFile,
+  inspeccionarArchivoLocal,
   removeDocumentoFile,
   requireUsuarioId,
   sanitizeNombreArchivo,
   ubicacionPerteneceAlUsuario,
   uploadDocumentoFile,
-  validateDocumentoContenido,
+  validarDocumentoEnServidor,
 } from '../lib/documentoStorage'
 import { supabase } from '../lib/supabase'
 
@@ -104,14 +105,21 @@ export async function guardarDocumento(
   tipo: TipoDocumento,
   file: File,
 ): Promise<DocumentoCliente> {
-  const formatoError = await validateDocumentoContenido(file)
-  if (formatoError) {
-    throw new Error(formatoError)
+  const local = await inspeccionarArchivoLocal(file)
+  if (!local.ok) {
+    throw new Error(local.error)
   }
 
+  const servidor = await validarDocumentoEnServidor(file)
   const usuarioId = await requireUsuarioId()
-  const ubicacionArchivo = buildUbicacionArchivo(usuarioId, tipo, file)
-  await uploadDocumentoFile(ubicacionArchivo, file)
+  const ubicacionArchivo = buildUbicacionArchivo(
+    usuarioId,
+    tipo,
+    file,
+    crypto.randomUUID(),
+    servidor.extension,
+  )
+  await uploadDocumentoFile(ubicacionArchivo, file, servidor.mime)
 
   try {
     return await registrarDocumento({

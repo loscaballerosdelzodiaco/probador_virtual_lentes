@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DocumentosPage } from '../pages/DocumentosPage'
 import {
-  DOCUMENTO_FORMAT_ERROR_MESSAGE,
+  DOCUMENTO_EXTENSION_ERROR_MESSAGE,
   DOCUMENTO_SIZE_ERROR_MESSAGE,
   DOCUMENTO_STORAGE_ERROR_MESSAGE,
   MAX_DOCUMENTO_BYTES,
@@ -31,7 +31,7 @@ vi.mock('../services/documentoService', async () => {
 const usuarioId = '11111111-1111-1111-1111-111111111111'
 
 function jpegFile(name = 'receta.jpg') {
-  return new File([new Uint8Array([0xff, 0xd8, 0xff])], name, { type: 'image/jpeg' })
+  return new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], name, { type: 'image/jpeg' })
 }
 
 function documentoRecibido(
@@ -269,7 +269,9 @@ describe('DocumentosPage', () => {
     await screen.findByText('Archivo pendiente de selección')
 
     provideFile(new File(['gif'], 'receta.gif', { type: 'image/gif' }))
-    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_FORMAT_ERROR_MESSAGE)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      DOCUMENTO_EXTENSION_ERROR_MESSAGE,
+    )
     expect(screen.getByText('Archivo no aceptado: receta.gif')).toBeInTheDocument()
     expect(screen.getByText('No se pudo cargar el archivo')).toBeInTheDocument()
     expect(guardarDocumento).not.toHaveBeenCalled()
@@ -277,7 +279,7 @@ describe('DocumentosPage', () => {
     const tooBig = jpegFile('grande.jpg')
     Object.defineProperty(tooBig, 'size', { value: MAX_DOCUMENTO_BYTES + 1 })
     provideFile(tooBig)
-    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_SIZE_ERROR_MESSAGE)
+    expect(await screen.findByRole('alert')).toHaveTextContent(DOCUMENTO_SIZE_ERROR_MESSAGE)
     expect(screen.getByText('Archivo no aceptado: grande.jpg')).toBeInTheDocument()
     expect(guardarDocumento).not.toHaveBeenCalled()
   })
@@ -372,7 +374,9 @@ describe('DocumentosPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Reemplazar receta' }))
     provideFile(new File(['gif'], 'receta.gif', { type: 'image/gif' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_FORMAT_ERROR_MESSAGE)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      DOCUMENTO_EXTENSION_ERROR_MESSAGE,
+    )
     expect(screen.getByText('Archivo no aceptado: receta.gif')).toBeInTheDocument()
     expect(screen.getByText('No se pudo cargar el archivo')).toBeInTheDocument()
     const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })

@@ -17,6 +17,9 @@ vi.mock('../lib/supabase', () => ({
         remove: vi.fn(),
       })),
     },
+    functions: {
+      invoke: vi.fn(),
+    },
     auth: {
       signUp: vi.fn(),
       signInWithPassword: vi.fn(),

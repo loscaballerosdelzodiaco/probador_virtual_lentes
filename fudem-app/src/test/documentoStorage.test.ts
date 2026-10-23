@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '../lib/supabase'
 import {
   DOCUMENTO_ACCESS_ERROR_MESSAGE,
-  DOCUMENTO_FORMAT_ERROR_MESSAGE,
+  DOCUMENTO_CORRUPT_ERROR_MESSAGE,
+  DOCUMENTO_EXTENSION_ERROR_MESSAGE,
   DOCUMENTO_SIZE_ERROR_MESSAGE,
   DOCUMENTO_STORAGE_ERROR_MESSAGE,
   MAX_DOCUMENTO_BYTES,
@@ -12,14 +13,17 @@ import {
   sanitizeNombreArchivo,
   ubicacionPerteneceAlUsuario,
   uploadDocumentoFile,
-  validateDocumentoContenido,
-  validateDocumentoFile,
+  validarArchivoDocumento,
+  validarDocumentoEnServidor,
 } from '../lib/documentoStorage'
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
     storage: {
       from: vi.fn(),
+    },
+    functions: {
+      invoke: vi.fn(),
     },
     auth: {
       getUser: vi.fn(),
@@ -28,40 +32,36 @@ vi.mock('../lib/supabase', () => ({
 }))
 
 function pdfFile(name = 'receta.pdf') {
-  return new File(['%PDF-1.4'], name, { type: 'application/pdf' })
+  return new File(['%PDF-1.4'], name, { type: 'application/octet-stream' })
+}
+
+function jpegFile(name = 'foto.jpg') {
+  return new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], name, {
+    type: 'application/octet-stream',
+  })
 }
 
 describe('documentoStorage', () => {
   beforeEach(() => {
     vi.mocked(supabase.storage.from).mockReset()
+    vi.mocked(supabase.functions.invoke).mockReset()
   })
 
-  it('acepta PDF e imagen y rechaza otros formatos o un archivo demasiado grande', () => {
-    expect(validateDocumentoFile(pdfFile())).toBeNull()
-    expect(
-      validateDocumentoFile(
-        new File(
-          [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
-          'foto.png',
-          { type: 'image/png' },
-        ),
-      ),
-    ).toBeNull()
-    expect(
-      validateDocumentoFile(new File(['x'], 'nota.txt', { type: 'text/plain' })),
-    ).toBe(DOCUMENTO_FORMAT_ERROR_MESSAGE)
-    const tooBig = new File(['x'], 'grande.pdf', { type: 'application/pdf' })
-    Object.defineProperty(tooBig, 'size', { value: MAX_DOCUMENTO_BYTES + 1 })
-    expect(validateDocumentoFile(tooBig)).toBe(DOCUMENTO_SIZE_ERROR_MESSAGE)
-  })
-
-  it('rechaza una imagen cuyo contenido no coincide con el tipo', async () => {
+  it('acepta PDF e imagen por contenido y rechaza extensión o tamaño inválidos', async () => {
+    await expect(validarArchivoDocumento(pdfFile())).resolves.toBeNull()
+    await expect(validarArchivoDocumento(jpegFile())).resolves.toBeNull()
     await expect(
-      validateDocumentoContenido(
-        new File(['no es png'], 'foto.png', { type: 'image/png' }),
-      ),
-    ).resolves.toBe(DOCUMENTO_FORMAT_ERROR_MESSAGE)
-    await expect(validateDocumentoContenido(pdfFile())).resolves.toBeNull()
+      validarArchivoDocumento(new File(['x'], 'nota.txt', { type: 'application/pdf' })),
+    ).resolves.toBe(DOCUMENTO_EXTENSION_ERROR_MESSAGE)
+    const tooBig = pdfFile('grande.pdf')
+    Object.defineProperty(tooBig, 'size', { value: MAX_DOCUMENTO_BYTES + 1 })
+    await expect(validarArchivoDocumento(tooBig)).resolves.toBe(DOCUMENTO_SIZE_ERROR_MESSAGE)
+  })
+
+  it('rechaza una imagen cuyo contenido está corrupto', async () => {
+    await expect(
+      validarArchivoDocumento(new File(['no es png'], 'foto.png', { type: 'image/png' })),
+    ).resolves.toBe(DOCUMENTO_CORRUPT_ERROR_MESSAGE)
   })
 
   it('arma una ruta privada bajo el id del usuario y limpia el nombre', () => {
@@ -70,27 +70,50 @@ describe('documentoStorage', () => {
       'receta',
       pdfFile(),
       'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+      'pdf',
     )
     expect(path).toBe(
       '11111111-1111-1111-1111-111111111111/receta/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.pdf',
     )
     expect(sanitizeNombreArchivo('C:\\\\tmp\\\\mi receta.pdf')).toBe('mi receta.pdf')
     expect(
-      ubicacionPerteneceAlUsuario(
-        '11111111-1111-1111-1111-111111111111',
-        path,
-      ),
+      ubicacionPerteneceAlUsuario('11111111-1111-1111-1111-111111111111', path),
     ).toBe(true)
-    expect(
-      ubicacionPerteneceAlUsuario('otro-id', path),
-    ).toBe(false)
+    expect(ubicacionPerteneceAlUsuario('otro-id', path)).toBe(false)
+  })
+
+  it('pide al servidor que inspeccione los bytes reales', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: { ok: true, mime: 'application/pdf', extension: 'pdf' },
+      error: null,
+    } as never)
+
+    await expect(validarDocumentoEnServidor(pdfFile())).resolves.toEqual({
+      mime: 'application/pdf',
+      extension: 'pdf',
+    })
+    expect(supabase.functions.invoke).toHaveBeenCalledWith(
+      'validar-documento',
+      expect.objectContaining({ body: expect.any(FormData) }),
+    )
+  })
+
+  it('usa el mensaje claro si el servidor rechaza el contenido', async () => {
+    vi.mocked(supabase.functions.invoke).mockResolvedValue({
+      data: { error: DOCUMENTO_CORRUPT_ERROR_MESSAGE, code: 'corrupt' },
+      error: { message: 'non-2xx' },
+    } as never)
+
+    await expect(validarDocumentoEnServidor(pdfFile())).rejects.toThrow(
+      DOCUMENTO_CORRUPT_ERROR_MESSAGE,
+    )
   })
 
   it('sube al bucket privado sin upsert y sin URL pública', async () => {
     const upload = vi.fn().mockResolvedValue({ data: { path: 'a' }, error: null })
     vi.mocked(supabase.storage.from).mockReturnValue({ upload } as never)
 
-    await uploadDocumentoFile('user/receta/id.pdf', pdfFile())
+    await uploadDocumentoFile('user/receta/id.pdf', pdfFile(), 'application/pdf')
 
     expect(supabase.storage.from).toHaveBeenCalledWith('documentos')
     expect(upload).toHaveBeenCalledWith(
@@ -102,7 +125,6 @@ describe('documentoStorage', () => {
         contentType: 'application/pdf',
       },
     )
-    expect(upload.mock.calls[0][2]).not.toHaveProperty('public')
   })
 
   it('explica el fallo de almacenamiento sin el detalle técnico', async () => {

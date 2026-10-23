@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { MAX_DOCUMENTO_BYTES, validateDocumentoFile } from '../lib/documentoStorage'
+import { MAX_DOCUMENTO_BYTES, validarArchivoDocumento } from '../lib/documentoStorage'
 import {
   DOCUMENTO_REGISTRO_ERROR_MESSAGE,
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
@@ -159,11 +159,11 @@ export function DocumentosPage() {
     if (cameraInputRef.current) cameraInputRef.current.value = ''
   }
 
-  function handleIncomingFile(file: File | undefined) {
+  async function handleIncomingFile(file: File | undefined) {
     setStatusMessage(null)
     if (!file) return
 
-    const validationError = validateDocumentoFile(file)
+    const validationError = await validarArchivoDocumento(file)
     if (validationError) {
       setSelectedFile(null)
       setRejectedName(file.name)
@@ -181,7 +181,7 @@ export function DocumentosPage() {
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = ''
-    handleIncomingFile(file)
+    void handleIncomingFile(file)
   }
 
   function limpiarSeleccion() {
@@ -222,7 +222,7 @@ export function DocumentosPage() {
       return
     }
 
-    const validationError = validateDocumentoFile(file)
+    const validationError = await validarArchivoDocumento(file)
     if (validationError) {
       setSelectedFile(null)
       setRejectedName(file.name)
