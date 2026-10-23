@@ -44,6 +44,21 @@ function recetaRecibida(documentos: DocumentoCliente[]): DocumentoCliente | null
   )
 }
 
+function recetaRechazada(documentos: DocumentoCliente[]): DocumentoCliente | null {
+  return (
+    documentos.find(
+      (documento) => documento.tipo === 'receta' && documento.estado_recepcion === 'rechazada',
+    ) ?? null
+  )
+}
+
+function etiquetaEnvio(submitting: boolean, reintentar: boolean, reemplazo: boolean): string {
+  if (submitting) return 'Cargando…'
+  if (reintentar) return 'Reintentar'
+  if (reemplazo) return 'Confirmar reemplazo'
+  return 'Recibir archivo'
+}
+
 type EstadoCarga = 'pending' | 'selected' | 'uploading' | 'success' | 'error'
 
 const ESTADO_CARGA_LABEL: Record<EstadoCarga, string> = {
@@ -88,13 +103,19 @@ export function DocumentosPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [reemplazando, setReemplazando] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const confirmacionRef = useRef<HTMLElement>(null)
+  const correccionRef = useRef<HTMLElement>(null)
   const anunciarConfirmacion = useRef(false)
   const recetaConfirmada = recetaRecibida(documentos)
+  const recetaParaCorregir = recetaConfirmada ?? recetaRechazada(documentos)
   const nombreConfirmado = recetaConfirmada
     ? nombreArchivoVisible(recetaConfirmada.nombre_archivo)
+    : null
+  const nombreEnCorreccion = recetaParaCorregir
+    ? nombreArchivoVisible(recetaParaCorregir.nombre_archivo)
     : null
   const puedeReintentar = uploadStatus === 'error' && selectedFile !== null && !isSubmitting
 
@@ -128,6 +149,11 @@ export function DocumentosPage() {
     confirmacionRef.current?.focus()
   }, [recetaConfirmada])
 
+  useEffect(() => {
+    if (!reemplazando) return
+    correccionRef.current?.focus()
+  }, [reemplazando])
+
   function clearFileInputs() {
     if (fileInputRef.current) fileInputRef.current.value = ''
     if (cameraInputRef.current) cameraInputRef.current.value = ''
@@ -158,13 +184,30 @@ export function DocumentosPage() {
     handleIncomingFile(file)
   }
 
-  function handleRemoveFile() {
+  function limpiarSeleccion() {
     clearFileInputs()
     setSelectedFile(null)
     setRejectedName(null)
     setFormError(null)
     setStatusMessage(null)
     setUploadStatus('pending')
+  }
+
+  function handleRemoveFile() {
+    limpiarSeleccion()
+  }
+
+  function iniciarReemplazo() {
+    if (isSubmitting || !recetaParaCorregir) return
+    limpiarSeleccion()
+    setTipo('receta')
+    setReemplazando(true)
+  }
+
+  function cancelarReemplazo() {
+    if (isSubmitting) return
+    limpiarSeleccion()
+    setReemplazando(false)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -193,14 +236,15 @@ export function DocumentosPage() {
     setStatusMessage(null)
     setIsSubmitting(true)
     setUploadStatus('uploading')
+    const tipoEnvio: TipoDocumento = reemplazando ? 'receta' : tipo
 
     try {
-      const creado = await guardarDocumento(tipo, file)
+      const creado = await guardarDocumento(tipoEnvio, file)
       setDocumentos((current) => [creado, ...current])
 
       if (creado.estado_recepcion !== 'recibida') {
         setFormError(
-          tipo === 'receta'
+          tipoEnvio === 'receta'
             ? RECETA_RECEPCION_INCOMPLETA_MESSAGE
             : EXAMEN_RECEPCION_INCOMPLETA_MESSAGE,
         )
@@ -208,8 +252,9 @@ export function DocumentosPage() {
         return
       }
 
-      if (tipo === 'receta') {
+      if (tipoEnvio === 'receta') {
         anunciarConfirmacion.current = true
+        setReemplazando(false)
       } else {
         setStatusMessage('Examen recibido y guardado.')
       }
@@ -260,7 +305,23 @@ export function DocumentosPage() {
         </p>
 
         <form className="auth-form documentos-form" onSubmit={handleSubmit} noValidate>
-          <fieldset className="documentos-tipo">
+          {reemplazando ? (
+            <section
+              ref={correccionRef}
+              className="documentos-correccion"
+              role="region"
+              aria-label="Corrección de receta"
+              tabIndex={-1}
+            >
+              <h2>Corrección de receta</h2>
+              <p>
+                Selecciona un archivo nuevo. La receta actual se conserva si el
+                reemplazo no se completa.
+              </p>
+              {nombreEnCorreccion ? <p>Receta actual: {nombreEnCorreccion}</p> : null}
+            </section>
+          ) : null}
+          <fieldset className="documentos-tipo" disabled={reemplazando}>
             <legend>Tipo de archivo</legend>
             <div className="documentos-tipo__grid">
               {TIPO_OPCIONES.map((opcion) => {
@@ -366,9 +427,21 @@ export function DocumentosPage() {
               onChange={handleFileChange}
             />
           </div>
-          <button className="btn" type="submit" disabled={isSubmitting || !selectedFile}>
-            {isSubmitting ? 'Cargando…' : puedeReintentar ? 'Reintentar' : 'Recibir archivo'}
-          </button>
+          <div className="documentos-form__acciones">
+            <button className="btn" type="submit" disabled={isSubmitting || !selectedFile}>
+              {etiquetaEnvio(isSubmitting, puedeReintentar, reemplazando)}
+            </button>
+            {reemplazando ? (
+              <button
+                type="button"
+                className="btn btn--outline"
+                disabled={isSubmitting}
+                onClick={cancelarReemplazo}
+              >
+                Cancelar
+              </button>
+            ) : null}
+          </div>
         </form>
 
         {formError ? (
@@ -397,16 +470,38 @@ export function DocumentosPage() {
                 <p className="documentos-upload__name">{nombreConfirmado}</p>
               </div>
             ) : null}
-            <a className="btn documentos-confirmacion__continuar" href="/catalogo">
-              Continuar con la compra
-            </a>
+            <div className="documentos-confirmacion__acciones">
+              <a className="btn documentos-confirmacion__continuar" href="/catalogo">
+                Continuar con la compra
+              </a>
+              {reemplazando ? null : (
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  disabled={isSubmitting}
+                  onClick={iniciarReemplazo}
+                >
+                  Reemplazar receta
+                </button>
+              )}
+            </div>
           </section>
         ) : null}
 
-        {!isLoading && !loadError && !recetaConfirmada ? (
-          <p className="documentos-estado" role="status">
-            Aún no hemos recibido una receta para tu compra.
-          </p>
+        {!isLoading && !loadError && !recetaConfirmada && !reemplazando ? (
+          <div className="documentos-estado">
+            <p role="status">Aún no hemos recibido una receta para tu compra.</p>
+            {recetaParaCorregir ? (
+              <button
+                type="button"
+                className="btn btn--outline"
+                disabled={isSubmitting}
+                onClick={iniciarReemplazo}
+              >
+                Reemplazar receta
+              </button>
+            ) : null}
+          </div>
         ) : null}
 
         {isLoading ? <p role="status">Cargando archivos…</p> : null}

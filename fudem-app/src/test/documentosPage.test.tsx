@@ -314,4 +314,100 @@ describe('DocumentosPage', () => {
 
     expect(await screen.findByText('Carga exitosa')).toBeInTheDocument()
   })
+
+  it('reemplaza la receta recibida y actualiza la confirmación', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('receta-ok.pdf')])
+    vi.mocked(guardarDocumento).mockResolvedValue(
+      documentoRecibido('nueva-receta.jpg', 'recibida', 12),
+    )
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Reemplazar receta' }))
+    expect(screen.getByRole('region', { name: 'Corrección de receta' })).toHaveTextContent(
+      'receta-ok.pdf',
+    )
+    expect(screen.getByRole('button', { name: 'Confirmar reemplazo' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /Examen/i })).toBeDisabled()
+
+    await chooseFile(user, jpegFile('nueva-receta.jpg'))
+    expect(screen.getByText('Archivo seleccionado')).toBeInTheDocument()
+    expect(screen.getByText('nueva-receta.jpg')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Confirmar reemplazo' }))
+
+    const confirmacion = await screen.findByRole('status', { name: 'Confirmación de receta' })
+    expect(confirmacion).toHaveTextContent('nueva-receta.jpg')
+    expect(confirmacion).not.toHaveTextContent('receta-ok.pdf')
+    expect(screen.getByText(/receta-ok\.pdf/)).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Corrección de receta' })).not.toBeInTheDocument()
+    expect(guardarDocumento).toHaveBeenCalledWith('receta', expect.any(File))
+  })
+
+  it('cancela la corrección antes de confirmar y conserva la receta', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('receta-ok.pdf')])
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Reemplazar receta' }))
+    await chooseFile(user, jpegFile('nueva-receta.jpg'))
+    expect(screen.getByText('Archivo seleccionado')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('region', { name: 'Corrección de receta' })).not.toBeInTheDocument()
+    expect(screen.queryByText('nueva-receta.jpg')).not.toBeInTheDocument()
+    expect(screen.getByText('Archivo pendiente de selección')).toBeInTheDocument()
+    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
+    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
+    expect(guardarDocumento).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Recibir archivo' })).toBeDisabled()
+  })
+
+  it('rechaza un archivo inválido al corregir y conserva la receta', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('receta-ok.pdf')])
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Reemplazar receta' }))
+    provideFile(new File(['gif'], 'receta.gif', { type: 'image/gif' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(DOCUMENTO_FORMAT_ERROR_MESSAGE)
+    expect(screen.getByText('Archivo no aceptado: receta.gif')).toBeInTheDocument()
+    expect(screen.getByText('No se pudo cargar el archivo')).toBeInTheDocument()
+    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
+    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
+    expect(confirmacion).not.toHaveTextContent('receta.gif')
+    expect(guardarDocumento).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeEnabled()
+  })
+
+  it('conserva la receta anterior si falla el reemplazo y permite reintentarlo', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('receta-ok.pdf')])
+    vi.mocked(guardarDocumento)
+      .mockRejectedValueOnce(new Error(DOCUMENTO_STORAGE_ERROR_MESSAGE))
+      .mockResolvedValueOnce(documentoRecibido('nueva-receta.jpg', 'recibida', 15))
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Reemplazar receta' }))
+    await chooseFile(user, jpegFile('nueva-receta.jpg'))
+    await user.click(screen.getByRole('button', { name: 'Confirmar reemplazo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(DOCUMENTO_STORAGE_ERROR_MESSAGE)
+    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
+    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
+    expect(confirmacion).not.toHaveTextContent('nueva-receta.jpg')
+    expect(screen.getByRole('region', { name: 'Corrección de receta' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByRole('status', { name: 'Confirmación de receta' })).toHaveTextContent(
+      'nueva-receta.jpg',
+    )
+    expect(
+      screen.getByRole('status', { name: 'Confirmación de receta' }),
+    ).not.toHaveTextContent('receta-ok.pdf')
+    expect(guardarDocumento).toHaveBeenCalledTimes(2)
+  })
 })

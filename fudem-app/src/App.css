@@ -599,17 +599,55 @@ main {
   font-weight: var(--weight-semibold);
 }
 
+.documentos-confirmacion__acciones,
+.documentos-form__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .documentos-confirmacion__continuar {
   justify-self: start;
 }
 
+.documentos-correccion {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-secondary);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-alt);
+}
+
+.documentos-correccion:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 110, 181, 0.15);
+}
+
+.documentos-correccion h2,
+.documentos-correccion p {
+  margin: 0;
+}
+
+.documentos-correccion h2 {
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
 .documentos-estado {
+  display: grid;
+  gap: var(--space-3);
   margin: var(--space-5) 0 0;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-bg-alt);
   color: var(--color-text);
+}
+
+.documentos-estado p {
+  margin: 0;
 }
 
 .documentos-list {
