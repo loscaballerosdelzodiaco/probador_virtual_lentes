@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '../lib/supabase'
 import {
+  CalidadInsuficienteError,
+  DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+  DOCUMENTO_CALIDAD_INSUFICIENTE,
+  evaluarCalidadArchivo,
+} from '../lib/documentoCalidad'
+import {
   DOCUMENTO_ACCESS_ERROR_MESSAGE,
   DOCUMENTO_FORMAT_ERROR_MESSAGE,
 } from '../lib/documentoStorage'
@@ -14,6 +20,14 @@ import {
   listarValidacion,
   registrarDocumento,
 } from '../services/documentoService'
+
+vi.mock('../lib/documentoCalidad', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/documentoCalidad')>()
+  return {
+    ...actual,
+    evaluarCalidadArchivo: vi.fn(actual.evaluarCalidadArchivo),
+  }
+})
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
@@ -55,6 +69,8 @@ describe('documentoService', () => {
     vi.mocked(supabase.storage.from).mockReset()
     vi.mocked(supabase.functions.invoke).mockReset()
     vi.mocked(supabase.auth.getUser).mockReset()
+    vi.mocked(evaluarCalidadArchivo).mockReset()
+    vi.mocked(evaluarCalidadArchivo).mockResolvedValue({ ok: true })
   })
 
   it('arma el insert como recibida y sin un usuario_id del cliente', () => {
@@ -216,6 +232,26 @@ describe('documentoService', () => {
       }),
     ).rejects.toThrow(DOCUMENTO_ACCESS_ERROR_MESSAGE)
     expect(supabase.storage.from).not.toHaveBeenCalled()
+  })
+
+  it('no marca recibida ni guarda si la receta no se puede leer', async () => {
+    mockSesion()
+    vi.mocked(evaluarCalidadArchivo).mockResolvedValue({
+      ok: false,
+      estado: DOCUMENTO_CALIDAD_INSUFICIENTE,
+      motivo: 'borrosa',
+      error: DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+    })
+    const jpeg = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], 'receta.jpg', {
+      type: 'image/jpeg',
+    })
+
+    const rechazo = guardarDocumento('receta', jpeg)
+    await expect(rechazo).rejects.toBeInstanceOf(CalidadInsuficienteError)
+    await expect(rechazo).rejects.toThrow(DOCUMENTO_CALIDAD_BORROSA_MESSAGE)
+    expect(supabase.functions.invoke).not.toHaveBeenCalled()
+    expect(supabase.storage.from).not.toHaveBeenCalled()
+    expect(supabase.from).not.toHaveBeenCalled()
   })
 
   it('rechaza un formato no permitido antes de llamar a Storage', async () => {

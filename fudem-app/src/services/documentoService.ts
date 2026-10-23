@@ -1,4 +1,8 @@
 import {
+  CalidadInsuficienteError,
+  evaluarCalidadArchivo,
+} from '../lib/documentoCalidad'
+import {
   DOCUMENTO_ACCESS_ERROR_MESSAGE,
   buildUbicacionArchivo,
   downloadDocumentoFile,
@@ -16,7 +20,12 @@ export const DOCUMENTO_TABLE = 'documento'
 export const VALIDACION_DOCUMENTO_TABLE = 'validacion_documento'
 
 export const TIPOS_DOCUMENTO = ['receta', 'examen'] as const
-export const ESTADOS_RECEPCION = ['pendiente', 'recibida', 'rechazada'] as const
+export const ESTADOS_RECEPCION = [
+  'pendiente',
+  'recibida',
+  'rechazada',
+  'calidad_insuficiente',
+] as const
 
 export type TipoDocumento = (typeof TIPOS_DOCUMENTO)[number]
 export type EstadoRecepcion = (typeof ESTADOS_RECEPCION)[number]
@@ -108,6 +117,11 @@ export async function guardarDocumento(
   const local = await inspeccionarArchivoLocal(file)
   if (!local.ok) {
     throw new Error(local.error)
+  }
+
+  const calidad = await evaluarCalidadArchivo(file)
+  if (!calidad.ok) {
+    throw new CalidadInsuficienteError(calidad)
   }
 
   const servidor = await validarDocumentoEnServidor(file)

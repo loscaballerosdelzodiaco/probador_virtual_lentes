@@ -14,6 +14,7 @@ const ESTADO_LABEL: Record<DocumentoCliente['estado_recepcion'], string> = {
   pendiente: 'Pendiente',
   recibida: 'Recibida',
   rechazada: 'Rechazada',
+  calidad_insuficiente: 'Calidad insuficiente',
 }
 
 const TIPO_LABEL: Record<TipoDocumento, string> = {
@@ -300,8 +301,8 @@ export function DocumentosPage() {
         </nav>
         <h1>Recetas y exámenes</h1>
         <p>
-          Adjunta una fotografía o un archivo de tu receta. Queda privado y se
-          asocia a tu cuenta solo cuando se recibe correctamente.
+          Adjunta una fotografía nítida y bien iluminada de tu receta. Queda
+          privada y solo se marca como recibida si se puede leer.
         </p>
 
         <form className="auth-form documentos-form" onSubmit={handleSubmit} noValidate>

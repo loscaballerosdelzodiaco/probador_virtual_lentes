@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DocumentosPage } from '../pages/DocumentosPage'
+import { DOCUMENTO_CALIDAD_BORROSA_MESSAGE } from '../lib/documentoCalidad'
 import {
   DOCUMENTO_EXTENSION_ERROR_MESSAGE,
   DOCUMENTO_SIZE_ERROR_MESSAGE,
@@ -114,6 +115,26 @@ describe('DocumentosPage', () => {
       screen.queryByRole('heading', { name: 'Receta recibida' }),
     ).not.toBeInTheDocument()
     expect(screen.queryByText(/utilizaremos durante tu compra/)).not.toBeInTheDocument()
+  })
+
+  it('pide una imagen nueva si la calidad de la receta no alcanza', async () => {
+    vi.mocked(guardarDocumento).mockRejectedValue(
+      new Error(DOCUMENTO_CALIDAD_BORROSA_MESSAGE),
+    )
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await screen.findByText('Todavía no has cargado recetas ni exámenes.')
+    await chooseFile(user, jpegFile())
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+    )
+    expect(
+      screen.queryByRole('heading', { name: 'Receta recibida' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled()
   })
 
   it('lista el archivo recibido sin exponer la ruta de Storage', async () => {
