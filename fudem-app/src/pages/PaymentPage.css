@@ -1,0 +1,196 @@
+/* HU5 / T2: pantalla de pago (resumen del pedido + formulario). Mobile first. */
+
+.payment__header h1 {
+  margin: 0;
+  padding-bottom: var(--space-2);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+}
+
+.payment__header p {
+  margin: 0 0 var(--space-5);
+  color: var(--color-text);
+}
+
+.payment__layout {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.payment__block-title {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+/* ---- Resumen del pedido ---- */
+.payment__summary {
+  align-self: start;
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-alt);
+}
+
+.payment__items {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.payment__item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.payment__item-thumb {
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: var(--border-width) solid var(--color-border-soft);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+}
+
+.payment__item-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.payment__item-name {
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.payment__item-price {
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.payment__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: var(--space-5) 0 0;
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+}
+
+.payment__total strong {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+}
+
+/* ---- Formulario ---- */
+.payment__form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.payment__methods,
+.payment__card-form {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.payment__method {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 48px;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-strong);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.payment__method:hover {
+  border-color: var(--color-accent-hover);
+}
+
+.payment__method.is-selected {
+  border-color: var(--color-accent);
+  background: var(--color-hover-tint);
+}
+
+.payment__method input {
+  accent-color: var(--color-accent);
+}
+
+.payment__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.payment__field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.payment__field label {
+  color: var(--color-text-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.payment__field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: var(--border-width) solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-strong);
+  font: inherit;
+  transition: var(--transition);
+}
+
+.payment__field input:hover {
+  border-color: var(--color-accent-hover);
+}
+
+.payment__field input:focus {
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgba(0, 110, 181, 0.15);
+  outline: none;
+}
+
+.payment__submit {
+  width: 100%;
+  min-height: 48px;
+}
+
+.payment__message:empty {
+  display: none;
+}
+
+.payment__message .notice {
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .payment__layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: var(--gutter);
+  }
+}
