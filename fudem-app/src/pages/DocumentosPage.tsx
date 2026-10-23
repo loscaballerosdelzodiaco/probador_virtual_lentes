@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { MAX_DOCUMENTO_BYTES, validateDocumentoFile } from '../lib/documentoStorage'
 import {
   DOCUMENTO_REGISTRO_ERROR_MESSAGE,
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
@@ -18,6 +19,28 @@ const ESTADO_LABEL: Record<DocumentoCliente['estado_recepcion'], string> = {
 const TIPO_LABEL: Record<TipoDocumento, string> = {
   receta: 'Receta',
   examen: 'Examen',
+}
+
+const ARCHIVO_ACCEPT =
+  'application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp'
+const FOTO_ACCEPT = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'
+const MAX_DOCUMENTO_MB = MAX_DOCUMENTO_BYTES / (1024 * 1024)
+const MISSING_FILE_MESSAGE = 'Selecciona un PDF o una imagen para continuar.'
+
+type EstadoCarga = 'pending' | 'selected' | 'uploading' | 'success' | 'error'
+
+const ESTADO_CARGA_LABEL: Record<EstadoCarga, string> = {
+  pending: 'Archivo pendiente de selección',
+  selected: 'Archivo seleccionado',
+  uploading: 'Carga en proceso',
+  success: 'Carga exitosa',
+  error: 'No se pudo cargar el archivo',
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 const TIPO_OPCIONES: Array<{
@@ -40,11 +63,16 @@ const TIPO_OPCIONES: Array<{
 export function DocumentosPage() {
   const [documentos, setDocumentos] = useState<DocumentoCliente[]>([])
   const [tipo, setTipo] = useState<TipoDocumento>('receta')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [rejectedName, setRejectedName] = useState<string | null>(null)
+  const [uploadStatus, setUploadStatus] = useState<EstadoCarga>('pending')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let active = true
@@ -70,33 +98,88 @@ export function DocumentosPage() {
     }
   }, [])
 
+  function clearFileInputs() {
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+  }
+
+  function handleIncomingFile(file: File | undefined) {
+    setStatusMessage(null)
+    if (!file) return
+
+    const validationError = validateDocumentoFile(file)
+    if (validationError) {
+      setSelectedFile(null)
+      setRejectedName(file.name)
+      setFormError(validationError)
+      setUploadStatus('error')
+      return
+    }
+
+    setRejectedName(null)
+    setFormError(null)
+    setSelectedFile(file)
+    setUploadStatus('selected')
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    handleIncomingFile(file)
+  }
+
+  function handleRemoveFile() {
+    clearFileInputs()
+    setSelectedFile(null)
+    setRejectedName(null)
+    setFormError(null)
+    setStatusMessage(null)
+    setUploadStatus('pending')
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isSubmitting) return
 
-    const form = event.currentTarget
-    const archivoInput = form.elements.namedItem('archivo')
-    const file =
-      archivoInput instanceof HTMLInputElement ? archivoInput.files?.[0] : null
+    const file = selectedFile
     if (!file) {
-      setFormError('Selecciona un PDF o una imagen para continuar.')
+      setStatusMessage(null)
+      setFormError(MISSING_FILE_MESSAGE)
+      setUploadStatus('error')
+      return
+    }
+
+    const validationError = validateDocumentoFile(file)
+    if (validationError) {
+      setSelectedFile(null)
+      setRejectedName(file.name)
+      setStatusMessage(null)
+      setFormError(validationError)
+      setUploadStatus('error')
       return
     }
 
     setFormError(null)
     setStatusMessage(null)
     setIsSubmitting(true)
+    setUploadStatus('uploading')
 
     try {
       const creado = await guardarDocumento(tipo, file)
       setDocumentos((current) => [creado, ...current])
-      setStatusMessage('Archivo recibido y guardado.')
-      form.reset()
+      setStatusMessage(
+        tipo === 'receta' ? 'Receta recibida y guardada.' : 'Examen recibido y guardado.',
+      )
+      setSelectedFile(null)
+      setRejectedName(null)
+      clearFileInputs()
       setTipo('receta')
+      setUploadStatus('success')
     } catch (error: unknown) {
       setFormError(
         error instanceof Error ? error.message : DOCUMENTO_REGISTRO_ERROR_MESSAGE,
       )
+      setUploadStatus('error')
     } finally {
       setIsSubmitting(false)
     }
@@ -129,8 +212,8 @@ export function DocumentosPage() {
         </nav>
         <h1>Recetas y exámenes</h1>
         <p>
-          Sube un PDF o una imagen. El archivo queda privado y se asocia a tu
-          cuenta automáticamente.
+          Adjunta una fotografía o un archivo de tu receta. Queda privado y se
+          asocia a tu cuenta solo cuando se recibe correctamente.
         </p>
 
         <form className="auth-form documentos-form" onSubmit={handleSubmit} noValidate>
@@ -165,18 +248,83 @@ export function DocumentosPage() {
           </fieldset>
           <div className="auth-form__field">
             <label htmlFor="documento-archivo">Archivo</label>
+            <div
+              className={`documentos-upload is-${uploadStatus}`}
+              aria-busy={uploadStatus === 'uploading'}
+            >
+              <p id="documento-estado" className="documentos-upload__status" role="status">
+                {ESTADO_CARGA_LABEL[uploadStatus]}
+              </p>
+              <p id="documento-formatos" className="documentos-upload__hint">
+                {`Formatos permitidos: PDF, JPG, PNG y WEBP. Tamaño máximo: ${MAX_DOCUMENTO_MB} MB.`}
+              </p>
+              {selectedFile ? (
+                <div className="documentos-upload__file">
+                  <p className="documentos-upload__name">{selectedFile.name}</p>
+                  <p className="documentos-upload__hint">{formatFileSize(selectedFile.size)}</p>
+                </div>
+              ) : null}
+              {rejectedName && !selectedFile ? (
+                <p className="documentos-upload__name">Archivo no aceptado: {rejectedName}</p>
+              ) : null}
+              <div className="documentos-upload__actions">
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  disabled={isSubmitting}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {selectedFile ? 'Cambiar archivo' : 'Seleccionar archivo'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  disabled={isSubmitting}
+                  onClick={() => cameraInputRef.current?.click()}
+                >
+                  Tomar fotografía
+                </button>
+                {selectedFile ? (
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    disabled={isSubmitting}
+                    onClick={handleRemoveFile}
+                  >
+                    Quitar archivo
+                  </button>
+                ) : null}
+              </div>
+              <p className="documentos-upload__hint">
+                En un celular, Tomar fotografía abre la cámara.
+              </p>
+            </div>
             <input
+              ref={fileInputRef}
               id="documento-archivo"
               name="archivo"
+              className="visually-hidden"
               type="file"
-              accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp"
+              accept={ARCHIVO_ACCEPT}
+              aria-describedby="documento-formatos documento-estado"
               disabled={isSubmitting}
-              required
+              onChange={handleFileChange}
             />
-            <p>PDF, JPG, PNG o WEBP. Máximo 10 MB.</p>
+            <input
+              ref={cameraInputRef}
+              id="documento-camara"
+              className="visually-hidden"
+              type="file"
+              accept={FOTO_ACCEPT}
+              capture="environment"
+              aria-label="Fotografía desde la cámara"
+              aria-describedby="documento-formatos documento-estado"
+              disabled={isSubmitting}
+              onChange={handleFileChange}
+            />
           </div>
-          <button className="btn" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Recibiendo…' : 'Recibir archivo'}
+          <button className="btn" type="submit" disabled={isSubmitting || !selectedFile}>
+            {isSubmitting ? 'Cargando…' : 'Recibir archivo'}
           </button>
         </form>
 
@@ -186,7 +334,7 @@ export function DocumentosPage() {
           </p>
         ) : null}
         {statusMessage ? (
-          <p className="notice" role="status">
+          <p className="notice notice--success" role="status">
             {statusMessage}
           </p>
         ) : null}
