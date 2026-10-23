@@ -26,6 +26,23 @@ const ARCHIVO_ACCEPT =
 const FOTO_ACCEPT = 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp'
 const MAX_DOCUMENTO_MB = MAX_DOCUMENTO_BYTES / (1024 * 1024)
 const MISSING_FILE_MESSAGE = 'Selecciona un PDF o una imagen para continuar.'
+const RECETA_RECEPCION_INCOMPLETA_MESSAGE =
+  'No pudimos confirmar la recepción de la receta. Inténtalo de nuevo.'
+const EXAMEN_RECEPCION_INCOMPLETA_MESSAGE =
+  'No pudimos confirmar la recepción del examen. Inténtalo de nuevo.'
+
+function nombreArchivoVisible(nombre: string): string | null {
+  const text = nombre.trim()
+  return text.length > 0 ? text : null
+}
+
+function recetaRecibida(documentos: DocumentoCliente[]): DocumentoCliente | null {
+  return (
+    documentos.find(
+      (documento) => documento.tipo === 'receta' && documento.estado_recepcion === 'recibida',
+    ) ?? null
+  )
+}
 
 type EstadoCarga = 'pending' | 'selected' | 'uploading' | 'success' | 'error'
 
@@ -73,6 +90,13 @@ export function DocumentosPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+  const confirmacionRef = useRef<HTMLElement>(null)
+  const anunciarConfirmacion = useRef(false)
+  const recetaConfirmada = recetaRecibida(documentos)
+  const nombreConfirmado = recetaConfirmada
+    ? nombreArchivoVisible(recetaConfirmada.nombre_archivo)
+    : null
+  const puedeReintentar = uploadStatus === 'error' && selectedFile !== null && !isSubmitting
 
   useEffect(() => {
     let active = true
@@ -97,6 +121,12 @@ export function DocumentosPage() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!anunciarConfirmacion.current || !recetaConfirmada) return
+    anunciarConfirmacion.current = false
+    confirmacionRef.current?.focus()
+  }, [recetaConfirmada])
 
   function clearFileInputs() {
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -167,9 +197,22 @@ export function DocumentosPage() {
     try {
       const creado = await guardarDocumento(tipo, file)
       setDocumentos((current) => [creado, ...current])
-      setStatusMessage(
-        tipo === 'receta' ? 'Receta recibida y guardada.' : 'Examen recibido y guardado.',
-      )
+
+      if (creado.estado_recepcion !== 'recibida') {
+        setFormError(
+          tipo === 'receta'
+            ? RECETA_RECEPCION_INCOMPLETA_MESSAGE
+            : EXAMEN_RECEPCION_INCOMPLETA_MESSAGE,
+        )
+        setUploadStatus('error')
+        return
+      }
+
+      if (tipo === 'receta') {
+        anunciarConfirmacion.current = true
+      } else {
+        setStatusMessage('Examen recibido y guardado.')
+      }
       setSelectedFile(null)
       setRejectedName(null)
       clearFileInputs()
@@ -324,7 +367,7 @@ export function DocumentosPage() {
             />
           </div>
           <button className="btn" type="submit" disabled={isSubmitting || !selectedFile}>
-            {isSubmitting ? 'Cargando…' : 'Recibir archivo'}
+            {isSubmitting ? 'Cargando…' : puedeReintentar ? 'Reintentar' : 'Recibir archivo'}
           </button>
         </form>
 
@@ -336,6 +379,33 @@ export function DocumentosPage() {
         {statusMessage ? (
           <p className="notice notice--success" role="status">
             {statusMessage}
+          </p>
+        ) : null}
+
+        {!isLoading && !loadError && recetaConfirmada ? (
+          <section
+            ref={confirmacionRef}
+            className="documentos-confirmacion"
+            role="status"
+            aria-label="Confirmación de receta"
+            tabIndex={-1}
+          >
+            <h2>Receta recibida</h2>
+            <p>La recibimos correctamente y la utilizaremos durante tu compra.</p>
+            {nombreConfirmado ? (
+              <div className="documentos-upload__file">
+                <p className="documentos-upload__name">{nombreConfirmado}</p>
+              </div>
+            ) : null}
+            <a className="btn documentos-confirmacion__continuar" href="/catalogo">
+              Continuar con la compra
+            </a>
+          </section>
+        ) : null}
+
+        {!isLoading && !loadError && !recetaConfirmada ? (
+          <p className="documentos-estado" role="status">
+            Aún no hemos recibido una receta para tu compra.
           </p>
         ) : null}
 

@@ -572,6 +572,46 @@ main {
   min-height: 44px;
 }
 
+.documentos-confirmacion {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-success);
+  border-top: 3px solid var(--color-success);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+}
+
+.documentos-confirmacion:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 110, 181, 0.15);
+}
+
+.documentos-confirmacion h2,
+.documentos-confirmacion p {
+  margin: 0;
+}
+
+.documentos-confirmacion h2 {
+  color: var(--color-text-strong);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.documentos-confirmacion__continuar {
+  justify-self: start;
+}
+
+.documentos-estado {
+  margin: var(--space-5) 0 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-alt);
+  color: var(--color-text);
+}
+
 .documentos-list {
   display: grid;
   gap: var(--space-4);

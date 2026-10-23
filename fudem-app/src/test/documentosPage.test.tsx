@@ -13,6 +13,7 @@ import {
   descargarDocumento,
   guardarDocumento,
   listarDocumentos,
+  type DocumentoCliente,
 } from '../services/documentoService'
 
 vi.mock('../services/documentoService', async () => {
@@ -31,6 +32,22 @@ const usuarioId = '11111111-1111-1111-1111-111111111111'
 
 function jpegFile(name = 'receta.jpg') {
   return new File([new Uint8Array([0xff, 0xd8, 0xff])], name, { type: 'image/jpeg' })
+}
+
+function documentoRecibido(
+  nombre: string,
+  estado: DocumentoCliente['estado_recepcion'] = 'recibida',
+  id = 9,
+): DocumentoCliente {
+  return {
+    id,
+    usuario_id: usuarioId,
+    nombre_archivo: nombre,
+    tipo: 'receta',
+    fecha_carga: '2026-10-22T04:00:00.000Z',
+    ubicacion_archivo: `${usuarioId}/receta/secret.pdf`,
+    estado_recepcion: estado,
+  }
 }
 
 async function chooseFile(user: ReturnType<typeof userEvent.setup>, file: File) {
@@ -92,18 +109,15 @@ describe('DocumentosPage', () => {
     )
     expect(screen.getByText('No se pudo cargar el archivo')).toBeInTheDocument()
     expect(screen.getByText('receta.jpg')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled()
+    expect(
+      screen.queryByRole('heading', { name: 'Receta recibida' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText(/utilizaremos durante tu compra/)).not.toBeInTheDocument()
   })
 
   it('lista el archivo recibido sin exponer la ruta de Storage', async () => {
-    vi.mocked(guardarDocumento).mockResolvedValue({
-      id: 9,
-      usuario_id: usuarioId,
-      nombre_archivo: 'receta.pdf',
-      tipo: 'receta',
-      fecha_carga: '2026-10-22T04:00:00.000Z',
-      ubicacion_archivo: `${usuarioId}/receta/secret.pdf`,
-      estado_recepcion: 'recibida',
-    })
+    vi.mocked(guardarDocumento).mockResolvedValue(documentoRecibido('receta.pdf'))
     const user = userEvent.setup()
     render(<DocumentosPage />)
 
@@ -111,14 +125,108 @@ describe('DocumentosPage', () => {
     await chooseFile(user, jpegFile())
     await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
 
-    expect(await screen.findByText(/receta.pdf/)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Receta recibida' })).toBeInTheDocument()
+    expect(screen.getByText(/utilizaremos durante tu compra/)).toBeInTheDocument()
+    expect(screen.getAllByText('receta.pdf').length).toBeGreaterThan(0)
     expect(screen.getByText(/Recibida/)).toBeInTheDocument()
     expect(screen.getByText('Carga exitosa')).toBeInTheDocument()
-    expect(screen.getByText('Receta recibida y guardada.')).toBeInTheDocument()
+    expect(screen.queryByText('Receta recibida y guardada.')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Continuar con la compra' })).toHaveAttribute(
+      'href',
+      '/catalogo',
+    )
     expect(screen.queryByText(/secret\.pdf/)).not.toBeInTheDocument()
     await waitFor(() => {
       expect(guardarDocumento).toHaveBeenCalledWith('receta', expect.any(File))
     })
+  })
+
+  it('mantiene visible la receta ya recibida y permite continuar la compra', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('mi-receta.pdf')])
+    render(<DocumentosPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Receta recibida' })).toBeInTheDocument()
+    expect(screen.getByText(/utilizaremos durante tu compra/)).toBeInTheDocument()
+    expect(screen.getAllByText('mi-receta.pdf').length).toBeGreaterThan(0)
+    expect(screen.getByRole('link', { name: 'Continuar con la compra' })).toHaveAttribute(
+      'href',
+      '/catalogo',
+    )
+    expect(guardarDocumento).not.toHaveBeenCalled()
+  })
+
+  it('no confirma la receta si la recepción no quedó completada', async () => {
+    vi.mocked(guardarDocumento).mockResolvedValue(
+      documentoRecibido('receta.pdf', 'pendiente'),
+    )
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await screen.findByText('Aún no hemos recibido una receta para tu compra.')
+    await chooseFile(user, jpegFile())
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No pudimos confirmar la recepción de la receta. Inténtalo de nuevo.',
+    )
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/utilizaremos durante tu compra/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Carga exitosa')).not.toBeInTheDocument()
+    expect(screen.getByText(/Pendiente/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeEnabled()
+  })
+
+  it('permite reintentar la recepción y confirmar solo el intento exitoso', async () => {
+    vi.mocked(guardarDocumento)
+      .mockRejectedValueOnce(new Error(DOCUMENTO_STORAGE_ERROR_MESSAGE))
+      .mockResolvedValueOnce(documentoRecibido('receta-final.jpg', 'recibida', 4))
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await screen.findByText('Aún no hemos recibido una receta para tu compra.')
+    await chooseFile(user, jpegFile('receta-final.jpg'))
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(DOCUMENTO_STORAGE_ERROR_MESSAGE)
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByRole('heading', { name: 'Receta recibida' })).toBeInTheDocument()
+    expect(screen.getAllByText('receta-final.jpg').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(guardarDocumento).toHaveBeenCalledTimes(2)
+  })
+
+  it('conserva la receta recibida si un envío posterior falla', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('receta-ok.pdf')])
+    vi.mocked(guardarDocumento).mockRejectedValue(new Error(DOCUMENTO_STORAGE_ERROR_MESSAGE))
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    await screen.findByRole('heading', { name: 'Receta recibida' })
+    await chooseFile(user, jpegFile('falla.jpg'))
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(DOCUMENTO_STORAGE_ERROR_MESSAGE)
+    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
+    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
+    expect(confirmacion).not.toHaveTextContent('falla.jpg')
+    expect(screen.getByText(/utilizaremos durante tu compra/)).toBeInTheDocument()
+  })
+
+  it('no presenta como recibida una receta rechazada', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([
+      documentoRecibido('receta-rechazada.pdf', 'rechazada'),
+    ])
+    render(<DocumentosPage />)
+
+    expect(
+      await screen.findByText('Aún no hemos recibido una receta para tu compra.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.getByText(/Rechazada/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Continuar con la compra' })).not.toBeInTheDocument()
   })
 
   it('muestra formatos, tamaño máximo y el estado pendiente', async () => {
