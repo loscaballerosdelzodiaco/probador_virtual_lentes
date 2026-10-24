@@ -7,6 +7,7 @@ import {
   type AppRoute,
 } from './lib/appRoute'
 import { CatalogPage } from './pages/CatalogPage'
+import { DocumentosPage } from './pages/DocumentosPage'
 import { LoginPage } from './pages/LoginPage'
 import { PaymentPage } from './pages/PaymentPage'
 import { RegistroPage } from './pages/RegistroPage'
@@ -131,14 +132,24 @@ function App() {
                   Registro
                 </a>
               </li>
-              <li className={canOpenCatalog ? 'is-active' : undefined}>
+              <li className={route.name === 'catalogo' ? 'is-active' : undefined}>
                 <a
                   href="/catalogo"
-                  aria-current={canOpenCatalog ? 'page' : undefined}
+                  aria-current={route.name === 'catalogo' ? 'page' : undefined}
                 >
                   Catálogo
                 </a>
               </li>
+              {canOpenCatalog ? (
+                <li className={route.name === 'documentos' ? 'is-active' : undefined}>
+                  <a
+                    href="/documentos"
+                    aria-current={route.name === 'documentos' ? 'page' : undefined}
+                  >
+                    Recetas
+                  </a>
+                </li>
+              ) : null}
             </ul>
           </nav>
           {canOpenCatalog ? (
@@ -199,10 +210,11 @@ function App() {
           <PaymentPage key={route.productId ?? 'sin-id'} productId={route.productId} />
         ) : null}
 
-        {!authLoading &&
-        canOpenCatalog &&
-        route.name !== 'probador' &&
-        route.name !== 'pago' ? (
+        {!authLoading && canOpenCatalog && route.name === 'documentos' ? (
+          <DocumentosPage />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name === 'catalogo' ? (
           <CatalogPage />
         ) : null}
       </main>
