@@ -10,6 +10,7 @@ import {
   signIn,
   subscribeToAuthChanges,
 } from '../services/authService'
+import { getAvailableProductById } from '../services/productService'
 import { registrarUsuario } from '../services/registroService'
 import { fakeSession } from './authMocks'
 
@@ -28,12 +29,32 @@ vi.mock('../services/productService', () => ({
   CATALOG_LOAD_ERROR_MESSAGE:
     'No pudimos cargar el catálogo. Inténtalo de nuevo en unos momentos.',
   getAvailableProducts: vi.fn(async () => []),
+  getAvailableProductById: vi.fn(),
 }))
 
 vi.mock('../services/registroService', () => ({
   REGISTRO_ERROR_MESSAGE:
     'No pudimos crear tu cuenta. Inténtalo de nuevo en unos momentos.',
   registrarUsuario: vi.fn(),
+}))
+
+vi.mock('../services/documentoService', () => ({
+  DOCUMENTOS_LOAD_ERROR_MESSAGE:
+    'No pudimos cargar tus recetas y exámenes. Inténtalo de nuevo en unos momentos.',
+  DOCUMENTO_REGISTRO_ERROR_MESSAGE:
+    'No pudimos registrar el archivo. Inténtalo de nuevo en unos momentos.',
+  listarDocumentos: vi.fn(async () => []),
+  guardarDocumento: vi.fn(),
+  descargarDocumento: vi.fn(),
+  obtenerRecetaAceptada: vi.fn(async () => ({
+    id: 44,
+    usuario_id: '11111111-1111-1111-1111-111111111111',
+    nombre_archivo: 'receta.pdf',
+    tipo: 'receta',
+    fecha_carga: '2026-10-22T04:00:00.000Z',
+    ubicacion_archivo: '11111111-1111-1111-1111-111111111111/receta/secret.pdf',
+    estado_recepcion: 'recibida',
+  })),
 }))
 
 async function fillRegistro() {
@@ -58,6 +79,7 @@ describe('flujo de acceso', () => {
     vi.mocked(subscribeToAuthChanges).mockReturnValue(() => {})
     vi.mocked(registrarUsuario).mockReset()
     vi.mocked(signIn).mockReset()
+    vi.mocked(getAvailableProductById).mockReset()
     vi.mocked(getCurrentSession).mockResolvedValue(null)
   })
 
@@ -66,6 +88,14 @@ describe('flujo de acceso', () => {
 
     expect(await screen.findByRole('heading', { name: 'Crear cuenta' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+  })
+
+  it('redirige al login si se abren las recetas sin sesión', async () => {
+    window.history.replaceState(null, '', '/documentos')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Recetas y exámenes' })).not.toBeInTheDocument()
   })
 
   it('redirige al login si se abre el catálogo sin sesión', async () => {
@@ -94,6 +124,66 @@ describe('flujo de acceso', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
     expect(screen.queryByText(/se integrará en un siguiente paso/)).not.toBeInTheDocument()
+  })
+
+  it('redirige al login si se abre el pago sin sesión (T10)', async () => {
+    window.history.replaceState(null, '', '/pago#4')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/login')
+    expect(screen.queryByRole('heading', { name: 'Pago' })).not.toBeInTheDocument()
+    expect(getAvailableProductById).not.toHaveBeenCalled()
+  })
+
+  it('abre la pantalla de pago con el producto y su precio cuando hay sesión (T10)', async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    vi.mocked(getAvailableProductById).mockResolvedValue({
+      id: 4,
+      nombre: 'Montura de prueba',
+      precio: 99,
+      sku: 'SKU-4',
+      material: 'Metal',
+      color: 'Negro',
+      medidas: '50-20',
+      categoria: 'Hombre',
+      url_imagen: 'ARNETTEAN7225.webp',
+      disponible: true,
+    })
+    window.history.replaceState(null, '', '/pago#4')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Pago' })).toBeInTheDocument()
+    expect(await screen.findByText('Montura de prueba')).toBeInTheDocument()
+    expect(getAvailableProductById).toHaveBeenCalledWith(4)
+    expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+  })
+
+  it('avisa en el pago si la montura no existe o no tiene precio (T10)', async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    vi.mocked(getAvailableProductById).mockResolvedValue(null)
+    window.history.replaceState(null, '', '/pago#99')
+    render(<App />)
+
+    expect(
+      await screen.findByText(/No encontramos esta montura disponible para comprar/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Volver al catálogo' })).toHaveAttribute(
+      'href',
+      '/catalogo',
+    )
+    expect(screen.queryByText('Forma de pago')).not.toBeInTheDocument()
+  })
+  
+  it('abre recetas y exámenes cuando ya hay una sesión válida', async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    window.history.replaceState(null, '', '/documentos')
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Recetas y exámenes' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
   it('abre el catálogo cuando ya hay una sesión válida', async () => {

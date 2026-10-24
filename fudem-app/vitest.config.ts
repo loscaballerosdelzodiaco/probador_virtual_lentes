@@ -12,6 +12,7 @@ export default defineConfig({
       VITE_SUPABASE_URL: 'https://example.supabase.co',
       VITE_SUPABASE_PUBLISHABLE_KEY: 'test-publishable-key',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+      VITE_MAX_DOCUMENTO_BYTES: '10485760',
     },
   },
 })

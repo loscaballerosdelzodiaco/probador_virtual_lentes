@@ -63,6 +63,13 @@ export function ProductDetail({ product }: ProductDetailProps) {
         <a className="btn product-detail__try-on" href={`/probador#${product.id}`}>
           Probar virtualmente
         </a>
+
+        {/* HU5 / T10: sin precio o con precio 0 no se puede pagar (RN1) */}
+        {product.precio != null && product.precio > 0 ? (
+          <a className="btn product-detail__buy" href={`/pago#${product.id}`}>
+            Comprar
+          </a>
+        ) : null}
       </div>
     </article>
   )

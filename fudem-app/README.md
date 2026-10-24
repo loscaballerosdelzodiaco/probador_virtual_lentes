@@ -73,3 +73,16 @@ export default defineConfig([
 ])
 
 ```
+
+## Tarjetas de prueba
+
+La pantalla de pago usa una pasarela simulada (`src/lib/payment/paymentGateway.ts`): no hace cobros reales ni llamadas de red. Usa cualquier titular, un vencimiento futuro y un CVV de 3 dígitos.
+
+| Número | Resultado |
+|---|---|
+| `4242 4242 4242 4242` | Aprobado |
+| `4000 0000 0000 0002` | Rechazado: tarjeta declinada (E1) |
+| `4000 0000 0000 9995` | Rechazado: fondos insuficientes (E1) |
+| `4000 0000 0000 0119` | El servicio no responde (E3) |
+
+Cualquier otro número válido se aprueba.

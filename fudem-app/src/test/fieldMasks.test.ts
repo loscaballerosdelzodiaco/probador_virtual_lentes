@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { maskDui, sanitizeName } from '../lib/fieldMasks'
+import {
+  maskCardExpiry,
+  maskCardNumber,
+  maskCvv,
+  maskDui,
+  sanitizeName,
+} from '../lib/fieldMasks'
 import {
   composeInternationalPhone,
   maskNationalPhone,
@@ -47,5 +53,29 @@ describe('máscaras de formulario', () => {
     expect(sanitizeName('María Ñuñez')).toBe('María Ñuñez')
     expect(sanitizeName('Ana2')).toBe('Ana')
     expect(sanitizeName('José-Luis')).toBe('José-Luis')
+  })
+
+  it('agrupa el número de tarjeta de cuatro en cuatro y limita a 19 dígitos', () => {
+    expect(maskCardNumber('4242')).toBe('4242')
+    expect(maskCardNumber('42424242')).toBe('4242 4242')
+    expect(maskCardNumber('4242-4242-4242-4242')).toBe('4242 4242 4242 4242')
+    expect(maskCardNumber('4242 abcd 4242')).toBe('4242 4242')
+    expect(maskCardNumber('12345678901234567890123')).toBe('1234 5678 9012 3456 789')
+  })
+
+  it('pone la barra del vencimiento y limita a MM/AA', () => {
+    expect(maskCardExpiry('12')).toBe('12')
+    expect(maskCardExpiry('122')).toBe('12/2')
+    expect(maskCardExpiry('1228')).toBe('12/28')
+    expect(maskCardExpiry('12/289')).toBe('12/28')
+  })
+
+  it('conserva el vencimiento al borrar la barra', () => {
+    expect(maskCardExpiry('12/')).toBe('12')
+  })
+
+  it('deja solo dígitos en el CVV, máximo 4', () => {
+    expect(maskCvv('12a3')).toBe('123')
+    expect(maskCvv('123456')).toBe('1234')
   })
 })
