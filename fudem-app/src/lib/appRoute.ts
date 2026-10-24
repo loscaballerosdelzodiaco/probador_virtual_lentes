@@ -7,12 +7,7 @@ export type AppRoute =
 
 export function productIdFromHash(hash: string): number | null {
   const value = hash.replace(/^#/, '')
-  if (
-    !value ||
-    value === 'catalogo' ||
-    value === 'probador' ||
-    value === 'pago'
-  ) {
+  if (!value || value === 'catalogo' || value === 'probador' || value === 'pago') {
     return null
   }
   const id = Number(value)
@@ -34,6 +29,7 @@ export function readAppRoute(
     return { name: 'probador', productId: productIdFromHash(hash) }
   }
 
+  // HU5 / T10: pantalla de pago del producto (/pago#<id>)
   if (path === '/pago' || hashValue === 'pago') {
     return { name: 'pago', productId: productIdFromHash(hash) }
   }
@@ -51,9 +47,7 @@ export function isCatalogRoute(route: AppRoute): boolean {
 
 export function isProtectedRoute(route: AppRoute): boolean {
   return (
-    route.name === 'catalogo' ||
-    route.name === 'probador' ||
-    route.name === 'pago'
+    route.name === 'catalogo' || route.name === 'probador' || route.name === 'pago'
   )
 }
 

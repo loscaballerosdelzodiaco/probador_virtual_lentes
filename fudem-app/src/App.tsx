@@ -6,9 +6,10 @@ import {
   replaceLocation,
   type AppRoute,
 } from './lib/appRoute'
+import { catalogImageSrc } from './lib/catalogImage'
 import { CatalogPage } from './pages/CatalogPage'
 import { LoginPage } from './pages/LoginPage'
-import { PaymentPage } from './pages/PaymentPage'
+import { PaymentPage, type ResumenItem } from './pages/PaymentPage'
 import { RegistroPage } from './pages/RegistroPage'
 import { getTryOnModels } from './lib/tryOn/tryOnService'
 import type { TryOnModel } from './lib/tryOn/types'
@@ -19,7 +20,83 @@ import {
   signOut,
   subscribeToAuthChanges,
 } from './services/authService'
+import {
+  getAvailableProductById,
+  type ProductoDisponible,
+} from './services/productService'
 import './App.css'
+
+const PAYMENT_PRODUCT_ERROR_MESSAGE =
+  'No pudimos cargar la montura. Inténtalo de nuevo en unos momentos.'
+
+function toResumenItem(product: ProductoDisponible | null): ResumenItem | null {
+  // Sin precio o con precio 0 no se puede pagar (RN1)
+  if (!product || product.precio == null || product.precio <= 0) return null
+  return {
+    id: product.id,
+    nombre: product.nombre?.trim() || 'Montura',
+    precio: product.precio,
+    imagenUrl: catalogImageSrc(product.url_imagen),
+  }
+}
+
+type PaymentRouteProps = {
+  productId: number | null
+}
+
+/**
+ * HU5 / T10: carga el producto de /pago#<id> y abre la pantalla de pago.
+ * Temporal: se reemplaza por PaymentPage con productId cuando llegue la T4.
+ */
+function PaymentRoute({ productId }: PaymentRouteProps) {
+  const [item, setItem] = useState<ResumenItem | null>(null)
+  const [status, setStatus] = useState<'loading' | 'ready' | 'unavailable' | 'error'>(
+    productId === null ? 'unavailable' : 'loading',
+  )
+
+  useEffect(() => {
+    if (productId === null) return
+
+    let active = true
+    getAvailableProductById(productId)
+      .then((product) => {
+        if (!active) return
+        const next = toResumenItem(product)
+        setItem(next)
+        setStatus(next ? 'ready' : 'unavailable')
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        console.error(error)
+        setStatus('error')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [productId])
+
+  if (status === 'ready' && item) return <PaymentPage items={[item]} />
+
+  return (
+    <section className="section">
+      <div className="row">
+        {status === 'loading' ? <p role="status">Cargando montura…</p> : null}
+        {status === 'error' ? (
+          <p className="notice notice--error" role="alert">
+            {PAYMENT_PRODUCT_ERROR_MESSAGE} <a href="/catalogo">Volver al catálogo</a>
+          </p>
+        ) : null}
+        {status === 'unavailable' ? (
+          <p className="notice" role="status">
+            No encontramos esta montura disponible para comprar.{' '}
+            <a href="/catalogo">Volver al catálogo</a>
+          </p>
+        ) : null}
+      </div>
+    </section>
+  )
+}
 
 function App() {
   const [route, setRoute] = useState<AppRoute>(() => readAppRoute())
@@ -196,7 +273,7 @@ function App() {
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'pago' ? (
-          <PaymentPage productId={route.productId} />
+          <PaymentRoute key={route.productId ?? 'sin-id'} productId={route.productId} />
         ) : null}
 
         {!authLoading &&
@@ -244,4 +321,4 @@ function App() {
   )
 }
 
-export default App  
+export default App

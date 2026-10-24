@@ -10,6 +10,7 @@ import {
   signIn,
   subscribeToAuthChanges,
 } from '../services/authService'
+import { getAvailableProductById } from '../services/productService'
 import { registrarUsuario } from '../services/registroService'
 import { fakeSession } from './authMocks'
 
@@ -28,6 +29,7 @@ vi.mock('../services/productService', () => ({
   CATALOG_LOAD_ERROR_MESSAGE:
     'No pudimos cargar el catálogo. Inténtalo de nuevo en unos momentos.',
   getAvailableProducts: vi.fn(async () => []),
+  getAvailableProductById: vi.fn(),
 }))
 
 vi.mock('../services/registroService', () => ({
@@ -58,6 +60,7 @@ describe('flujo de acceso', () => {
     vi.mocked(subscribeToAuthChanges).mockReturnValue(() => {})
     vi.mocked(registrarUsuario).mockReset()
     vi.mocked(signIn).mockReset()
+    vi.mocked(getAvailableProductById).mockReset()
     vi.mocked(getCurrentSession).mockResolvedValue(null)
   })
 
@@ -94,6 +97,55 @@ describe('flujo de acceso', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
     expect(screen.queryByText(/se integrará en un siguiente paso/)).not.toBeInTheDocument()
+  })
+
+  it('redirige al login si se abre el pago sin sesión (T10)', async () => {
+    window.history.replaceState(null, '', '/pago#4')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/login')
+    expect(screen.queryByRole('heading', { name: 'Pago' })).not.toBeInTheDocument()
+    expect(getAvailableProductById).not.toHaveBeenCalled()
+  })
+
+  it('abre la pantalla de pago con el producto y su precio cuando hay sesión (T10)', async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    vi.mocked(getAvailableProductById).mockResolvedValue({
+      id: 4,
+      nombre: 'Montura de prueba',
+      precio: 99,
+      sku: 'SKU-4',
+      material: 'Metal',
+      color: 'Negro',
+      medidas: '50-20',
+      categoria: 'Hombre',
+      url_imagen: 'ARNETTEAN7225.webp',
+      disponible: true,
+    })
+    window.history.replaceState(null, '', '/pago#4')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Pago' })).toBeInTheDocument()
+    expect(screen.getByText('Montura de prueba')).toBeInTheDocument()
+    expect(getAvailableProductById).toHaveBeenCalledWith(4)
+    expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+  })
+
+  it('avisa en el pago si la montura no existe o no tiene precio (T10)', async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    vi.mocked(getAvailableProductById).mockResolvedValue(null)
+    window.history.replaceState(null, '', '/pago#99')
+    render(<App />)
+
+    expect(
+      await screen.findByText(/No encontramos esta montura disponible para comprar/),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Volver al catálogo' })).toHaveAttribute(
+      'href',
+      '/catalogo',
+    )
+    expect(screen.queryByRole('heading', { name: 'Pago' })).not.toBeInTheDocument()
   })
 
   it('abre el catálogo cuando ya hay una sesión válida', async () => {
