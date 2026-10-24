@@ -164,6 +164,8 @@ describe('flujo de acceso', () => {
       '/catalogo',
     )
     expect(screen.queryByText('Forma de pago')).not.toBeInTheDocument()
+  })
+  
   it('abre recetas y exámenes cuando ya hay una sesión válida', async () => {
     vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
     window.history.replaceState(null, '', '/documentos')
