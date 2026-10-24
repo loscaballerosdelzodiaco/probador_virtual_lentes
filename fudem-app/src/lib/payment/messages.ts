@@ -20,4 +20,27 @@ export const PAYMENT_MESSAGES = {
   cvvInvalid: 'CVV: usa solo números.',
   cvvLength: 'CVV: debe tener 3 dígitos.',
   cvvLengthAmex: 'CVV: debe tener 4 dígitos para American Express.',
+  // T4: producto de la pantalla de pago
+  productNotSelected: 'No seleccionaste ninguna montura.',
+  productMissing: 'No encontramos esta montura disponible para comprar.',
+  productNoPrice: 'Esta montura no tiene precio registrado, por eso no se puede comprar.',
+  productLoadFailed:
+    'No se pudo consultar el producto. Inténtalo de nuevo en unos momentos.',
+  // E2 (CA5): continuar sin elegir forma de pago
+  noMethod: 'Selecciona una forma de pago para continuar',
+  // CA1: pago con tarjeta aprobado
+  paid: 'Pago realizado con éxito',
+  // A1, CA2, RN5: pago en tienda
+  storePending: 'Tu pedido quedó registrado, pagarás al retirarlo en tienda',
+  // T7: no se pudo crear el pedido (no se cobra)
+  orderFailed: 'No pudimos registrar tu pedido. Inténtalo de nuevo en unos momentos.',
+  // E1 (CA4): tarjeta declinada o sin fondos
+  declined:
+    'No se pudo procesar el pago, la tarjeta fue rechazada o no tiene fondos suficientes. Intenta con otra tarjeta',
+  // T9: pago aprobado que no se pudo guardar (Reintentar no cobra de nuevo)
+  recordFailed:
+    'El pago fue aprobado, pero no pudimos guardarlo. Pulsa Reintentar; no se hará otro cobro.',
+  // E3 (CA6): la pasarela no respondió
+  serviceUnavailable:
+    'No se pudo comunicar con el servicio de pago, no se realizó ningún cobro. Intenta de nuevo más tarde',
 } as const

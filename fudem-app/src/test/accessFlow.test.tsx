@@ -145,7 +145,7 @@ describe('flujo de acceso', () => {
       'href',
       '/catalogo',
     )
-    expect(screen.queryByRole('heading', { name: 'Pago' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Forma de pago')).not.toBeInTheDocument()
   })
 
   it('abre el catálogo cuando ya hay una sesión válida', async () => {

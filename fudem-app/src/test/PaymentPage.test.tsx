@@ -131,6 +131,8 @@ describe('PaymentPage: resumen y selector', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('No se pudo consultar el producto')
+    // En pantalla nunca se muestra el error técnico
+    expect(alert.textContent).not.toContain('JWT expired')
     expect(screen.queryByText('Forma de pago')).toBeNull()
   })
 

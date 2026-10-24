@@ -22,14 +22,14 @@ type CardInputProps = {
   'type' | 'inputMode' | 'autoComplete' | 'placeholder'
 >
 
-/** T5 (A2): campo con su mensaje de error al lado. */
+/** T5 (A2): campo con su mensaje de error al lado (role="alert" para lectores de pantalla). */
 function CardInput({ field, label, form, ...inputProps }: CardInputProps) {
   const id = `tarjeta-${field}`
   const errorId = `${id}-error`
   const error = form.errors[field]
 
   return (
-    <div className={error ? 'payment__field payment__field--error' : 'payment__field'}>
+    <div className={error ? 'pay__field pay__field--invalid' : 'pay__field'}>
       <label htmlFor={id}>{label}</label>
       <input
         {...inputProps}
@@ -43,7 +43,7 @@ function CardInput({ field, label, form, ...inputProps }: CardInputProps) {
         aria-describedby={error ? errorId : undefined}
       />
       {error ? (
-        <p id={errorId} className="payment__error">
+        <p id={errorId} className="pay__error" role="alert">
           {error}
         </p>
       ) : null}
@@ -54,8 +54,8 @@ function CardInput({ field, label, form, ...inputProps }: CardInputProps) {
 /** HU5 / T2: campos de la tarjeta. T5: valores, errores y máscaras llegan por props. */
 export function CardForm(props: CardFormProps) {
   return (
-    <fieldset className="payment__card-form">
-      <legend className="payment__block-title">Datos de la tarjeta</legend>
+    <fieldset className="pay__card-form">
+      <legend className="pay__legend">Datos de la tarjeta</legend>
 
       <CardInput
         form={props}
@@ -70,13 +70,13 @@ export function CardForm(props: CardFormProps) {
       <CardInput
         form={props}
         field="titular"
-        label="Titular"
+        label="Titular de la tarjeta"
         type="text"
         autoComplete="cc-name"
         placeholder="Como aparece en la tarjeta"
       />
 
-      <div className="payment__row">
+      <div className="pay__row">
         <CardInput
           form={props}
           field="vencimiento"

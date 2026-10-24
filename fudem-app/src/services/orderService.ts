@@ -74,9 +74,31 @@ export async function recordPayment(input: NuevoPago): Promise<void> {
   })
 
   if (error) {
-    if (input.estado === 'aprobado' && error.code === UNIQUE_VIOLATION_CODE) {
+    if (
+      input.estado === 'aprobado' &&
+      (error.code === UNIQUE_VIOLATION_CODE || (await isOrderPaid(input.pedidoId)))
+    ) {
       throw new PaymentAlreadyRecordedError()
     }
     throw new Error('No se pudo registrar el pago.', { cause: error })
+  }
+}
+
+/**
+ * T9: si el pedido ya quedó pagado, la política RLS rechaza el nuevo pago
+ * antes que el índice único. Se consulta el pedido para no mostrar un error
+ * cuando el pago ya se había guardado (por ejemplo, si se perdió la respuesta).
+ */
+async function isOrderPaid(pedidoId: number): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from(PEDIDO_TABLE)
+      .select('estado')
+      .eq('id', pedidoId)
+      .maybeSingle<{ estado: EstadoPedido }>()
+
+    return !error && data?.estado === ESTADO_PEDIDO.pagado
+  } catch {
+    return false
   }
 }

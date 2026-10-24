@@ -67,9 +67,18 @@ export function useCardForm() {
     setAttempted(false)
   }
 
+  /** T8 (E1): tras un rechazo se borran número y CVV; titular y vencimiento se conservan. */
+  function clearSensitive() {
+    setValues((current) => ({ ...current, numero: '', cvv: '' }))
+    setErrors({})
+    setAttempted(false)
+  }
+
   return {
+    values,
     validate,
     reset,
+    clearSensitive,
     formProps: { values, errors, onChange: setField, onBlur: blurField, inputRef },
   }
 }
