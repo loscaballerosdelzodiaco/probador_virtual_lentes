@@ -3,11 +3,14 @@ export type AppRoute =
   | { name: 'login' }
   | { name: 'catalogo'; productId: number | null }
   | { name: 'probador'; productId: number | null }
+  | { name: 'pago'; productId: number | null }
   | { name: 'documentos' }
 
 export function productIdFromHash(hash: string): number | null {
   const value = hash.replace(/^#/, '')
-  if (!value || value === 'catalogo' || value === 'probador') return null
+  if (!value || value === 'catalogo' || value === 'probador' || value === 'pago') {
+    return null
+  }
   const id = Number(value)
   return Number.isInteger(id) && id > 0 ? id : null
 }
@@ -31,6 +34,11 @@ export function readAppRoute(
     return { name: 'probador', productId: productIdFromHash(hash) }
   }
 
+  // HU5 / T10: pantalla de pago del producto (/pago#<id>)
+  if (path === '/pago' || hashValue === 'pago') {
+    return { name: 'pago', productId: productIdFromHash(hash) }
+  }
+
   if (path === '/catalogo' || hashValue === 'catalogo' || productIdFromHash(hash)) {
     return { name: 'catalogo', productId: productIdFromHash(hash) }
   }
@@ -43,7 +51,7 @@ export function isCatalogRoute(route: AppRoute): boolean {
 }
 
 export function isProtectedRoute(route: AppRoute): boolean {
-  return route.name === 'catalogo' || route.name === 'probador' || route.name === 'documentos'
+  return route.name === 'catalogo' || route.name === 'probador' || route.name === 'documentos' || route.name === 'pago'
 }
 
 export function replaceLocation(path: string): void {

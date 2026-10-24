@@ -1,0 +1,113 @@
+.pay__header p { color: var(--color-text-muted); }
+
+.pay__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+}
+@media (min-width: 900px) {
+  .pay__layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: start;
+  }
+}
+.pay__column { display: flex; flex-direction: column; gap: var(--space-5); }
+
+.pay__panel {
+  padding: var(--space-5);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-card);
+}
+.pay__title { font-size: var(--text-xl); }
+
+/* Resumen */
+.pay__summary-item { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); }
+.pay__summary-media {
+  flex: 0 0 96px;
+  width: 96px;
+  aspect-ratio: 1;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-alt);
+}
+.pay__summary-media img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.pay__summary-name { margin: 0; padding: 0; color: var(--color-text-strong); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.pay__summary-rows { margin: 0; }
+.pay__summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-top: var(--border-width) solid var(--color-border-soft);
+}
+.pay__summary-row dt, .pay__summary-row dd { margin: 0; }
+.pay__summary-row--total { color: var(--color-text-strong); font-size: var(--text-lg); font-weight: var(--weight-bold); }
+
+/* Formas de pago */
+.pay__methods { margin: 0 0 var(--space-5); padding: 0; border: 0; }
+.pay__methods legend { padding: 0 0 var(--space-2); color: var(--color-text-strong); font-weight: var(--weight-semibold); }
+.pay__method {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.pay__method:hover { border-color: var(--color-accent); }
+.pay__method.is-selected { border-color: var(--color-accent); background: var(--color-bg-notice); }
+.pay__method input { margin-top: 5px; }
+.pay__method span { display: flex; flex-direction: column; }
+.pay__method small { color: var(--color-text-muted); font-size: var(--text-sm); }
+
+/* Formulario de tarjeta */
+.pay__card-form { margin-bottom: var(--space-4); }
+.pay__card-form { min-width: 0; padding: 0; border: 0; }
+.pay__legend { padding: 0 0 var(--space-2); color: var(--color-text-strong); font-weight: var(--weight-semibold); }
+.pay__row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+.pay__field { display: grid; align-content: start; margin-bottom: var(--space-4); }
+.pay__field label { display: block; padding-bottom: var(--space-1); color: var(--color-text-strong); font-weight: var(--weight-semibold); }
+/* Texto y CVV (password) con el mismo estilo */
+.pay__field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: var(--border-width) solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-text-strong);
+  font: inherit;
+  font-size: var(--text-md);
+  transition: var(--transition);
+}
+.pay__field input:hover { border-color: var(--color-accent-hover); }
+.pay__field input:focus {
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgba(0, 110, 181, 0.15);
+  outline: none;
+}
+
+/* T5 (A2): campo con error y su mensaje junto al campo */
+.pay__field--invalid input,
+.pay__field--invalid input:hover { border-color: var(--color-error); }
+.pay__field--invalid input:focus {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px rgba(184, 28, 35, 0.15);
+}
+.pay__error { margin: 0; padding: var(--space-1) 0 0; color: var(--color-error); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+
+/* E1, E2, E3: aviso del pago con su botón Reintentar */
+.pay__alert { display: grid; gap: var(--space-2); justify-items: start; margin: 0 0 var(--space-4); padding: 1em; }
+.pay__alert p { margin: 0; }
+
+.pay__submit { width: 100%; padding: 0.6em 1em; font-size: var(--text-md); text-align: center; }
+
+/* Confirmación */
+.pay__confirm { margin: 0 0 var(--space-5); }
+.pay__confirm div { display: flex; justify-content: space-between; padding: var(--space-2) 0; border-top: var(--border-width) solid var(--color-border-soft); }
+.pay__confirm dt, .pay__confirm dd { margin: 0; }
+.pay__confirm dd { color: var(--color-text-strong); font-weight: var(--weight-semibold); }

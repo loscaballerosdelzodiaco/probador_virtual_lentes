@@ -9,6 +9,7 @@ import {
 import { CatalogPage } from './pages/CatalogPage'
 import { DocumentosPage } from './pages/DocumentosPage'
 import { LoginPage } from './pages/LoginPage'
+import { PaymentPage } from './pages/PaymentPage'
 import { RegistroPage } from './pages/RegistroPage'
 import { getTryOnModels } from './lib/tryOn/tryOnService'
 import type { TryOnModel } from './lib/tryOn/types'
@@ -203,6 +204,10 @@ function App() {
 
         {!authLoading && canOpenCatalog && route.name === 'probador' ? (
           <TryOnPage productId={route.productId} models={tryOnModels} />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name === 'pago' ? (
+          <PaymentPage key={route.productId ?? 'sin-id'} productId={route.productId} />
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'documentos' ? (

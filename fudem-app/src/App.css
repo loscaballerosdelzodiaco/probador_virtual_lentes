@@ -278,6 +278,12 @@ main {
   margin-top: var(--space-5);
 }
 
+/* HU5 / T10: botón Comprar debajo de Probar virtualmente */
+.product-detail__buy {
+  align-self: flex-start;
+  margin-top: var(--space-3);
+}
+
 .site-footer .container {
   width: min(92%, var(--container-max));
   margin-bottom: var(--space-5);
