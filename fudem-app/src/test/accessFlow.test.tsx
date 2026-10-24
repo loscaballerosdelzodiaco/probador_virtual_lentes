@@ -145,7 +145,7 @@ describe('flujo de acceso', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Pago' })).toBeInTheDocument()
-    expect(screen.getByText('Montura de prueba')).toBeInTheDocument()
+    expect(await screen.findByText('Montura de prueba')).toBeInTheDocument()
     expect(getAvailableProductById).toHaveBeenCalledWith(4)
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
