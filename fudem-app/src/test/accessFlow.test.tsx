@@ -36,6 +36,16 @@ vi.mock('../services/registroService', () => ({
   registrarUsuario: vi.fn(),
 }))
 
+vi.mock('../services/documentoService', () => ({
+  DOCUMENTOS_LOAD_ERROR_MESSAGE:
+    'No pudimos cargar tus recetas y exámenes. Inténtalo de nuevo en unos momentos.',
+  DOCUMENTO_REGISTRO_ERROR_MESSAGE:
+    'No pudimos registrar el archivo. Inténtalo de nuevo en unos momentos.',
+  listarDocumentos: vi.fn(async () => []),
+  guardarDocumento: vi.fn(),
+  descargarDocumento: vi.fn(),
+}))
+
 async function fillRegistro() {
   const user = userEvent.setup()
   await user.type(screen.getByLabelText('DUI'), '00000000-0')
@@ -68,6 +78,14 @@ describe('flujo de acceso', () => {
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
+  it('redirige al login si se abren las recetas sin sesión', async () => {
+    window.history.replaceState(null, '', '/documentos')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Recetas y exámenes' })).not.toBeInTheDocument()
+  })
+
   it('redirige al login si se abre el catálogo sin sesión', async () => {
     window.history.replaceState(null, '', '/catalogo')
     render(<App />)
@@ -94,6 +112,17 @@ describe('flujo de acceso', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
     expect(screen.queryByText(/se integrará en un siguiente paso/)).not.toBeInTheDocument()
+  })
+
+  it('abre recetas y exámenes cuando ya hay una sesión válida', async () => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    window.history.replaceState(null, '', '/documentos')
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Recetas y exámenes' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
   it('abre el catálogo cuando ya hay una sesión válida', async () => {

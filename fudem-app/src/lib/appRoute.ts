@@ -3,6 +3,7 @@ export type AppRoute =
   | { name: 'login' }
   | { name: 'catalogo'; productId: number | null }
   | { name: 'probador'; productId: number | null }
+  | { name: 'documentos' }
 
 export function productIdFromHash(hash: string): number | null {
   const value = hash.replace(/^#/, '')
@@ -22,6 +23,10 @@ export function readAppRoute(
     return { name: 'login' }
   }
 
+  if (path === '/documentos' || hashValue === 'documentos') {
+    return { name: 'documentos' }
+  }
+
   if (path === '/probador' || hashValue === 'probador') {
     return { name: 'probador', productId: productIdFromHash(hash) }
   }
@@ -38,7 +43,7 @@ export function isCatalogRoute(route: AppRoute): boolean {
 }
 
 export function isProtectedRoute(route: AppRoute): boolean {
-  return route.name === 'catalogo' || route.name === 'probador'
+  return route.name === 'catalogo' || route.name === 'probador' || route.name === 'documentos'
 }
 
 export function replaceLocation(path: string): void {
