@@ -1,0 +1,24 @@
+/** Valores tal como los guarda la migración de pedido y pago (en minúscula). */
+export const ESTADO_PEDIDO = {
+  pendiente: 'pendiente de pago',
+  pagado: 'pagado',
+} as const
+
+export type EstadoPedido = (typeof ESTADO_PEDIDO)[keyof typeof ESTADO_PEDIDO]
+
+/** Texto que ve el comprador. */
+export const ESTADO_PEDIDO_LABEL: Record<EstadoPedido, string> = {
+  'pendiente de pago': 'Pendiente de pago',
+  pagado: 'Pagado',
+}
+
+export type FormaPagoPedido = 'tarjeta' | 'tienda'
+
+export type EstadoPago = 'aprobado' | 'rechazado'
+
+export type PedidoRegistrado = {
+  id: number
+  /** Lo asigna la base de datos, por ejemplo PED-000001. */
+  numero: string
+  estado: EstadoPedido
+}

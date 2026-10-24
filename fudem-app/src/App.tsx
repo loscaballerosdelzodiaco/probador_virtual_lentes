@@ -8,6 +8,7 @@ import {
 } from './lib/appRoute'
 import { CatalogPage } from './pages/CatalogPage'
 import { LoginPage } from './pages/LoginPage'
+import { PaymentPage } from './pages/PaymentPage'
 import { RegistroPage } from './pages/RegistroPage'
 import { getTryOnModels } from './lib/tryOn/tryOnService'
 import type { TryOnModel } from './lib/tryOn/types'
@@ -194,7 +195,14 @@ function App() {
           <TryOnPage productId={route.productId} models={tryOnModels} />
         ) : null}
 
-        {!authLoading && canOpenCatalog && route.name !== 'probador' ? (
+        {!authLoading && canOpenCatalog && route.name === 'pago' ? (
+          <PaymentPage productId={route.productId} />
+        ) : null}
+
+        {!authLoading &&
+        canOpenCatalog &&
+        route.name !== 'probador' &&
+        route.name !== 'pago' ? (
           <CatalogPage />
         ) : null}
       </main>
@@ -236,4 +244,4 @@ function App() {
   )
 }
 
-export default App
+export default App  

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { formatPrice } from '../lib/payment/format'
 import { PAYMENT_MESSAGES } from '../lib/payment/messages'
+import { PaymentAlreadyRecordedError } from '../lib/payment/paymentErrors'
 import {
   PaymentGatewayError,
   processPayment,
@@ -61,6 +62,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
 })
 
 async function openCardForm() {
@@ -238,21 +240,6 @@ describe('PaymentPage: registro del pedido', () => {
     expect(screen.queryByText(PAYMENT_MESSAGES.paid)).toBeNull()
   })
 
-  it('avisa si no se pudo guardar el pago aprobado y no muestra la confirmación', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.mocked(createOrder).mockResolvedValue(cardPedido)
-    vi.mocked(processPayment).mockResolvedValue(approved)
-    vi.mocked(recordPayment).mockRejectedValue(new Error('insert failed'))
-
-    await openCardForm()
-    fillCard()
-    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }))
-
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain(PAYMENT_MESSAGES.orderFailed)
-    expect(screen.queryByText(PAYMENT_MESSAGES.paid)).toBeNull()
-  })
-
   it('no crea pedido ni cobra si los datos de la tarjeta son inválidos (A2)', async () => {
     await openCardForm()
     fireEvent.click(screen.getByRole('button', { name: 'Pagar' }))
@@ -260,35 +247,6 @@ describe('PaymentPage: registro del pedido', () => {
     expect((await screen.findAllByRole('alert')).length).toBeGreaterThan(0)
     expect(createOrder).not.toHaveBeenCalled()
     expect(processPayment).not.toHaveBeenCalled()
-  })
-
-  it('registra un solo pedido y un solo pago aunque se envíe varias veces (CA7)', async () => {
-    let release: (result: ResultadoPago) => void = () => {}
-    vi.mocked(createOrder).mockResolvedValue(cardPedido)
-    vi.mocked(processPayment).mockReturnValue(
-      new Promise<ResultadoPago>((resolve) => {
-        release = resolve
-      }),
-    )
-
-    const { container } = await openCardForm()
-    fillCard()
-
-    const form = container.querySelector('form') as HTMLFormElement
-    fireEvent.submit(form)
-    fireEvent.submit(form)
-    fireEvent.submit(form)
-
-    await waitFor(() => expect(processPayment).toHaveBeenCalledTimes(1))
-    expect(
-      (screen.getByRole('button', { name: 'Procesando pago…' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true)
-
-    release(approved)
-    expect(await screen.findByText('PED-000007')).toBeTruthy()
-    expect(createOrder).toHaveBeenCalledTimes(1)
-    expect(recordPayment).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -397,8 +355,84 @@ describe('PaymentPage: pago declinado o sin fondos (E1)', () => {
       ultimosDigitos: '4242',
     })
   })
+})
 
-  it('informa que no hubo cobro cuando el servicio no responde y no guarda ningún pago (E3)', async () => {
+describe('PaymentPage: cobros duplicados (CA7 / RN4)', () => {
+  it('registra un solo pedido y un solo pago aunque se envíe varias veces', async () => {
+    let release: (result: ResultadoPago) => void = () => {}
+    vi.mocked(createOrder).mockResolvedValue(cardPedido)
+    vi.mocked(processPayment).mockReturnValue(
+      new Promise<ResultadoPago>((resolve) => {
+        release = resolve
+      }),
+    )
+
+    const { container } = await openCardForm()
+    fillCard()
+
+    const form = container.querySelector('form') as HTMLFormElement
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+
+    await waitFor(() => expect(processPayment).toHaveBeenCalledTimes(1))
+    expect(
+      (screen.getByRole('button', { name: 'Procesando pago…' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+
+    release(approved)
+    expect(await screen.findByText('PED-000007')).toBeTruthy()
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(recordPayment).toHaveBeenCalledTimes(1)
+  })
+
+  it('no vuelve a cobrar si el pago se aprobó pero no se pudo registrar', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(createOrder).mockResolvedValue(cardPedido)
+    vi.mocked(processPayment).mockResolvedValue(approved)
+    vi.mocked(recordPayment)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce(undefined)
+
+    await openCardForm()
+    fillCard()
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(PAYMENT_MESSAGES.recordFailed)
+    expect(screen.queryByText(PAYMENT_MESSAGES.paid)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByText('PED-000007')).toBeTruthy()
+    expect(processPayment).toHaveBeenCalledTimes(1)
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(recordPayment).toHaveBeenCalledTimes(2)
+    expect(recordPayment).toHaveBeenLastCalledWith({
+      pedidoId: 7,
+      estado: 'aprobado',
+      ultimosDigitos: '4242',
+    })
+  })
+
+  it('muestra la confirmación si el pedido ya tenía un pago aprobado', async () => {
+    vi.mocked(createOrder).mockResolvedValue(cardPedido)
+    vi.mocked(processPayment).mockResolvedValue(approved)
+    vi.mocked(recordPayment).mockRejectedValue(new PaymentAlreadyRecordedError())
+
+    await openCardForm()
+    fillCard()
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }))
+
+    expect(await screen.findByText(PAYMENT_MESSAGES.paid)).toBeTruthy()
+    expect(screen.getByText('PED-000007')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('PaymentPage: falla del servicio de pago (E3 / CA6)', () => {
+  it('informa que no hubo cobro y no guarda ningún pago', async () => {
     vi.mocked(createOrder).mockResolvedValue(cardPedido)
     vi.mocked(processPayment).mockRejectedValue(
       new PaymentGatewayError('sin_respuesta'),
@@ -411,5 +445,48 @@ describe('PaymentPage: pago declinado o sin fondos (E1)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain(PAYMENT_MESSAGES.serviceUnavailable)
     expect(recordPayment).not.toHaveBeenCalled()
+    expect(screen.queryByText(PAYMENT_MESSAGES.paid)).toBeNull()
+  })
+
+  it('conserva los datos de la tarjeta y rehabilita el botón', async () => {
+    vi.mocked(createOrder).mockResolvedValue(cardPedido)
+    vi.mocked(processPayment).mockRejectedValue(
+      new PaymentGatewayError('sin_respuesta'),
+    )
+
+    await openCardForm()
+    fillCard('4000000000000119')
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }))
+    await screen.findByRole('alert')
+
+    expect(valueOf('Número de tarjeta')).toBe('4000 0000 0000 0119')
+    expect(valueOf('CVV')).toBe('123')
+    expect(
+      (screen.getByRole('button', { name: 'Pagar' }) as HTMLButtonElement).disabled,
+    ).toBe(false)
+  })
+
+  it('permite reintentar sin crear otro pedido', async () => {
+    vi.mocked(createOrder).mockResolvedValue(cardPedido)
+    vi.mocked(processPayment)
+      .mockRejectedValueOnce(new PaymentGatewayError('sin_respuesta'))
+      .mockResolvedValueOnce(approved)
+
+    await openCardForm()
+    fillCard()
+    fireEvent.click(screen.getByRole('button', { name: 'Pagar' }))
+    await screen.findByRole('alert')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByText('PED-000007')).toBeTruthy()
+    expect(createOrder).toHaveBeenCalledTimes(1)
+    expect(processPayment).toHaveBeenCalledTimes(2)
+    expect(recordPayment).toHaveBeenCalledTimes(1)
+    expect(recordPayment).toHaveBeenCalledWith({
+      pedidoId: 7,
+      estado: 'aprobado',
+      ultimosDigitos: '4242',
+    })
   })
 })

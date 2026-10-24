@@ -60,6 +60,12 @@ export function ProductDetail({ product }: ProductDetailProps) {
           </dl>
         ) : null}
 
+        {product.precio != null && product.precio > 0 ? (
+          <a className="btn product-detail__buy" href={`/pago#${product.id}`}>
+            Comprar
+          </a>
+        ) : null}
+
         <a className="btn product-detail__try-on" href={`/probador#${product.id}`}>
           Probar virtualmente
         </a>

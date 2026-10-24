@@ -278,6 +278,10 @@ main {
   margin-top: var(--space-5);
 }
 
+.product-detail__buy { 
+  margin-right: var(--space-2); 
+}
+
 .site-footer .container {
   width: min(92%, var(--container-max));
   margin-bottom: var(--space-5);
