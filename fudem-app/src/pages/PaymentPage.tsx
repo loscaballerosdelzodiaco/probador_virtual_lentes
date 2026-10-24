@@ -16,6 +16,10 @@ import { isPaymentAlreadyRecorded } from '../lib/payment/paymentErrors'
 import { processPayment, type ResultadoPago } from '../lib/payment/paymentGateway'
 import { useCardForm } from '../lib/payment/useCardForm'
 import { withTimeout } from '../lib/payment/withTimeout'
+import {
+  obtenerRecetaAceptada,
+  type DocumentoCliente,
+} from '../services/documentoService'
 import { createOrder, recordPayment } from '../services/orderService'
 import { getAvailableProductById } from '../services/productService'
 import './PaymentPage.css'
@@ -35,6 +39,10 @@ type ResumenProducto = {
 type ProductState =
   | { status: 'loading' | 'notSelected' | 'missing' | 'noPrice' | 'error' }
   | { status: 'ready'; product: ResumenProducto }
+
+type RecetaState =
+  | { status: 'loading' | 'missing' | 'error' }
+  | { status: 'ready'; receta: DocumentoCliente }
 
 type PaymentAlert = {
   text: string
@@ -69,6 +77,7 @@ export function PaymentPage({ productId }: PaymentPageProps) {
   const [productState, setProductState] = useState<ProductState>(() =>
     productId === null ? { status: 'notSelected' } : { status: 'loading' },
   )
+  const [recetaState, setRecetaState] = useState<RecetaState>({ status: 'loading' })
   const [method, setMethod] = useState<PaymentMethod | null>(null)
   const [processing, setProcessing] = useState(false)
   const [alert, setAlert] = useState<PaymentAlert | null>(null)
@@ -110,6 +119,17 @@ export function PaymentPage({ productId }: PaymentPageProps) {
         setProductState({ status: 'error' })
       })
 
+    obtenerRecetaAceptada()
+      .then((receta) => {
+        if (!active) return
+        setRecetaState(receta ? { status: 'ready', receta } : { status: 'missing' })
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        console.error(error)
+        setRecetaState({ status: 'error' })
+      })
+
     return () => {
       active = false
     }
@@ -127,10 +147,15 @@ export function PaymentPage({ productId }: PaymentPageProps) {
   async function ensureOrder(
     product: ResumenProducto,
     formaPago: PaymentMethod,
+    documentoId: number,
   ): Promise<PedidoRegistrado | null> {
     if (orderRef.current) return orderRef.current
     try {
-      orderRef.current = await createOrder({ productId: product.id, formaPago })
+      orderRef.current = await createOrder({
+        productId: product.id,
+        formaPago,
+        documentoId,
+      })
       return orderRef.current
     } catch (error: unknown) {
       console.error(error)
@@ -169,8 +194,8 @@ export function PaymentPage({ productId }: PaymentPageProps) {
     })
   }
 
-  async function payWithCard(product: ResumenProducto) {
-    const pedido = await ensureOrder(product, 'tarjeta')
+  async function payWithCard(product: ResumenProducto, documentoId: number) {
+    const pedido = await ensureOrder(product, 'tarjeta', documentoId)
     if (!pedido) return
 
     let result: ResultadoPago
@@ -202,8 +227,8 @@ export function PaymentPage({ productId }: PaymentPageProps) {
     await saveApproved()
   }
 
-  async function payInStore(product: ResumenProducto) {
-    const pedido = await ensureOrder(product, 'tienda')
+  async function payInStore(product: ResumenProducto, documentoId: number) {
+    const pedido = await ensureOrder(product, 'tienda', documentoId)
     if (!pedido) return
 
     orderRef.current = null
@@ -229,7 +254,12 @@ export function PaymentPage({ productId }: PaymentPageProps) {
 
   function startPayment() {
     if (productState.status !== 'ready' || busyRef.current) return
+    if (recetaState.status !== 'ready') {
+      setAlert({ text: PAYMENT_MESSAGES.recipeRequired })
+      return
+    }
     const { product } = productState
+    const { receta } = recetaState
 
     if (!method) {
       setAlert({ text: PAYMENT_MESSAGES.noMethod })
@@ -243,7 +273,9 @@ export function PaymentPage({ productId }: PaymentPageProps) {
 
     setAlert(null)
     void runExclusive(() =>
-      method === 'tarjeta' ? payWithCard(product) : payInStore(product),
+      method === 'tarjeta'
+        ? payWithCard(product, receta.id)
+        : payInStore(product, receta.id),
     )
   }
 
@@ -313,6 +345,12 @@ export function PaymentPage({ productId }: PaymentPageProps) {
                 <p className="pay__summary-name">{productState.product.nombre}</p>
               </div>
               <dl className="pay__summary-rows">
+                {recetaState.status === 'ready' ? (
+                  <div className="pay__summary-row">
+                    <dt>Receta</dt>
+                    <dd>{recetaState.receta.nombre_archivo}</dd>
+                  </div>
+                ) : null}
                 <div className="pay__summary-row">
                   <dt>Precio</dt>
                   <dd>{formatPrice(productState.product.precio)}</dd>
@@ -325,6 +363,24 @@ export function PaymentPage({ productId }: PaymentPageProps) {
             </aside>
 
             <div className="pay__column">
+              {recetaState.status === 'loading' ? (
+                <p role="status">Comprobando receta…</p>
+              ) : null}
+
+              {recetaState.status === 'error' ? (
+                <p className="notice notice--error" role="alert">
+                  {PAYMENT_MESSAGES.recipeLoadFailed}{' '}
+                  <a href="/documentos">Ir a recetas</a>
+                </p>
+              ) : null}
+
+              {recetaState.status === 'missing' ? (
+                <p className="notice" role="status">
+                  {PAYMENT_MESSAGES.recipeRequired}{' '}
+                  <a href="/documentos">Cargar receta</a>
+                </p>
+              ) : null}
+
               {confirmation ? (
                 <section className="pay__panel" aria-labelledby="pay-confirm-title">
                   <h2 id="pay-confirm-title" className="pay__title">
@@ -342,6 +398,12 @@ export function PaymentPage({ productId }: PaymentPageProps) {
                       <dt>Estado</dt>
                       <dd>{ESTADO_PEDIDO_LABEL[confirmation.pedido.estado]}</dd>
                     </div>
+                    {recetaState.status === 'ready' ? (
+                      <div>
+                        <dt>Receta</dt>
+                        <dd>{recetaState.receta.nombre_archivo}</dd>
+                      </div>
+                    ) : null}
                     {confirmation.ultimosDigitos ? (
                       <div>
                         <dt>Tarjeta</dt>
@@ -353,7 +415,7 @@ export function PaymentPage({ productId }: PaymentPageProps) {
                     Volver al catálogo
                   </a>
                 </section>
-              ) : (
+              ) : recetaState.status === 'ready' ? (
                 <form className="pay__panel" onSubmit={handleSubmit} noValidate>
                   <PaymentMethodSelector
                     selected={method}
@@ -387,7 +449,7 @@ export function PaymentPage({ productId }: PaymentPageProps) {
                     {submitLabel}
                   </button>
                 </form>
-              )}
+              ) : null}
             </div>
           </div>
         ) : null}

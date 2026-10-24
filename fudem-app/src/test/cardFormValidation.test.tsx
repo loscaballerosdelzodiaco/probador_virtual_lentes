@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PAYMENT_MESSAGES } from '../lib/payment/messages'
 import { processPayment } from '../lib/payment/paymentGateway'
 import { PaymentPage } from '../pages/PaymentPage'
+import { obtenerRecetaAceptada } from '../services/documentoService'
 import { createOrder, recordPayment } from '../services/orderService'
 import { getAvailableProductById } from '../services/productService'
 
@@ -14,6 +15,10 @@ vi.mock('../services/productService', () => ({
 vi.mock('../services/orderService', () => ({
   createOrder: vi.fn(),
   recordPayment: vi.fn(),
+}))
+
+vi.mock('../services/documentoService', () => ({
+  obtenerRecetaAceptada: vi.fn(),
 }))
 
 vi.mock('../lib/payment/paymentGateway', async (importOriginal) => ({
@@ -67,6 +72,16 @@ describe('validación del formulario de tarjeta (A2, CA3)', () => {
     vi.setSystemTime(new Date(2026, 9, 23))
     vi.mocked(getAvailableProductById).mockReset()
     vi.mocked(getAvailableProductById).mockResolvedValue(sample)
+    vi.mocked(obtenerRecetaAceptada).mockReset()
+    vi.mocked(obtenerRecetaAceptada).mockResolvedValue({
+      id: 44,
+      usuario_id: '11111111-1111-1111-1111-111111111111',
+      nombre_archivo: 'receta.pdf',
+      tipo: 'receta',
+      fecha_carga: '2026-10-22T04:00:00.000Z',
+      ubicacion_archivo: '11111111-1111-1111-1111-111111111111/receta/secret.pdf',
+      estado_recepcion: 'recibida',
+    })
     vi.mocked(createOrder).mockReset()
     vi.mocked(createOrder).mockResolvedValue({
       id: 7,
@@ -144,7 +159,11 @@ describe('validación del formulario de tarjeta (A2, CA3)', () => {
     await user.click(screen.getByRole('button', { name: 'Pagar' }))
 
     expect(await screen.findByText(PAYMENT_MESSAGES.paid)).toBeInTheDocument()
-    expect(createOrder).toHaveBeenCalledWith({ productId: 1, formaPago: 'tarjeta' })
+    expect(createOrder).toHaveBeenCalledWith({
+      productId: 1,
+      formaPago: 'tarjeta',
+      documentoId: 44,
+    })
     expect(processPayment).toHaveBeenCalledTimes(1)
     expect(document.querySelector('.pay__error')).toBeNull()
   })
@@ -161,7 +180,11 @@ describe('validación del formulario de tarjeta (A2, CA3)', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmar pedido' }))
 
     expect(await screen.findByText(PAYMENT_MESSAGES.storePending)).toBeInTheDocument()
-    expect(createOrder).toHaveBeenCalledWith({ productId: 1, formaPago: 'tienda' })
+    expect(createOrder).toHaveBeenCalledWith({
+      productId: 1,
+      formaPago: 'tienda',
+      documentoId: 44,
+    })
     expect(processPayment).not.toHaveBeenCalled()
     expect(document.querySelector('.pay__error')).toBeNull()
   })

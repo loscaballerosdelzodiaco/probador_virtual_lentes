@@ -23,6 +23,7 @@ type PedidoRow = {
 export type NuevoPedido = {
   productId: number
   formaPago: FormaPagoPedido
+  documentoId: number
 }
 
 export type NuevoPago = {
@@ -42,6 +43,7 @@ export async function createOrder(input: NuevoPedido): Promise<PedidoRegistrado>
     .insert({
       producto_id: input.productId,
       forma_pago: input.formaPago,
+      documento_id: input.documentoId,
       estado: ESTADO_PEDIDO.pendiente,
     })
     .select('id, numero_pedido, estado')

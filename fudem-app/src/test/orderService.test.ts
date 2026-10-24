@@ -41,12 +41,17 @@ describe('createOrder', () => {
   it('registra el pedido con tarjeta como pendiente de pago y devuelve el número', async () => {
     const { insert } = mockPedidoInsert()
 
-    const order = await createOrder({ productId: 1, formaPago: 'tarjeta' })
+    const order = await createOrder({
+      productId: 1,
+      formaPago: 'tarjeta',
+      documentoId: 44,
+    })
 
     expect(supabase.from).toHaveBeenCalledWith('pedido')
     expect(insert).toHaveBeenCalledWith({
       producto_id: 1,
       forma_pago: 'tarjeta',
+      documento_id: 44,
       estado: 'pendiente de pago',
     })
     expect(order).toEqual({
@@ -59,11 +64,12 @@ describe('createOrder', () => {
   it('registra el pedido en tienda (A1 / RN5)', async () => {
     const { insert } = mockPedidoInsert()
 
-    await createOrder({ productId: 2, formaPago: 'tienda' })
+    await createOrder({ productId: 2, formaPago: 'tienda', documentoId: 44 })
 
     expect(insert).toHaveBeenCalledWith({
       producto_id: 2,
       forma_pago: 'tienda',
+      documento_id: 44,
       estado: 'pendiente de pago',
     })
   })
@@ -71,7 +77,7 @@ describe('createOrder', () => {
   it('no manda monto ni usuario: los fijan el catálogo y la sesión (RN1)', async () => {
     const { insert } = mockPedidoInsert()
 
-    await createOrder({ productId: 1, formaPago: 'tarjeta' })
+    await createOrder({ productId: 1, formaPago: 'tarjeta', documentoId: 44 })
 
     const sent = insert.mock.calls[0][0]
     expect(sent).not.toHaveProperty('monto')
@@ -83,7 +89,7 @@ describe('createOrder', () => {
     mockPedidoInsert({ data: null, error: { message: 'RLS' } })
 
     await expect(
-      createOrder({ productId: 1, formaPago: 'tarjeta' }),
+      createOrder({ productId: 1, formaPago: 'tarjeta', documentoId: 44 }),
     ).rejects.toThrow('No se pudo registrar el pedido.')
   })
 })

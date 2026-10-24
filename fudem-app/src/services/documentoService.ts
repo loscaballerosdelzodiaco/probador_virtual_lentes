@@ -96,6 +96,21 @@ export async function listarDocumentos(): Promise<DocumentoCliente[]> {
   return data ?? []
 }
 
+export function recetaAceptadaDe(
+  documentos: DocumentoCliente[],
+): DocumentoCliente | null {
+  return (
+    documentos.find(
+      (documento) =>
+        documento.tipo === 'receta' && documento.estado_recepcion === 'recibida',
+    ) ?? null
+  )
+}
+
+export async function obtenerRecetaAceptada(): Promise<DocumentoCliente | null> {
+  return recetaAceptadaDe(await listarDocumentos())
+}
+
 export async function registrarDocumento(
   documento: NuevoDocumento,
 ): Promise<DocumentoCliente> {

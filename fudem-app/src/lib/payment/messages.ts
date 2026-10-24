@@ -26,6 +26,10 @@ export const PAYMENT_MESSAGES = {
   productNoPrice: 'Esta montura no tiene precio registrado, por eso no se puede comprar.',
   productLoadFailed:
     'No se pudo consultar el producto. Inténtalo de nuevo en unos momentos.',
+  recipeRequired:
+    'Necesitas una receta recibida para elaborar los lentes. Cárgala para continuar.',
+  recipeLoadFailed:
+    'No pudimos comprobar tu receta. Inténtalo de nuevo en unos momentos.',
   // E2 (CA5): continuar sin elegir forma de pago
   noMethod: 'Selecciona una forma de pago para continuar',
   // CA1: pago con tarjeta aprobado

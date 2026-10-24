@@ -19,6 +19,8 @@ import {
   guardarDocumento,
   listarDocumentos,
   listarValidacion,
+  obtenerRecetaAceptada,
+  recetaAceptadaDe,
   registrarDocumento,
 } from '../services/documentoService'
 
@@ -106,6 +108,34 @@ describe('documentoService', () => {
     expect(supabase.auth.getUser).toHaveBeenCalled()
     expect(supabase.from).toHaveBeenCalledWith('documento')
     expect(order).toHaveBeenCalledWith('fecha_carga', { ascending: false })
+  })
+
+  it('toma solo la receta recibida del cliente, no pendientes ni exámenes', async () => {
+    mockSesion()
+    const examen = {
+      ...documento,
+      id: 2,
+      tipo: 'examen' as const,
+      nombre_archivo: 'examen.pdf',
+    }
+    const pendiente = {
+      ...documento,
+      id: 3,
+      estado_recepcion: 'pendiente' as const,
+      nombre_archivo: 'borrador.jpg',
+    }
+    const order = vi.fn().mockReturnValue({
+      returns: vi.fn().mockResolvedValue({
+        data: [pendiente, documento, examen],
+        error: null,
+      }),
+    })
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnValue({ order }),
+    } as never)
+
+    expect(recetaAceptadaDe([pendiente, examen])).toBeNull()
+    await expect(obtenerRecetaAceptada()).resolves.toEqual(documento)
   })
 
   it('explica el fallo al cargar documentos sin el detalle técnico', async () => {

@@ -9,6 +9,7 @@ import {
   type ResultadoPago,
 } from '../lib/payment/paymentGateway'
 import { PaymentPage } from '../pages/PaymentPage'
+import { obtenerRecetaAceptada } from '../services/documentoService'
 import { createOrder, recordPayment } from '../services/orderService'
 import { getAvailableProductById } from '../services/productService'
 
@@ -19,6 +20,10 @@ vi.mock('../services/productService', () => ({
 vi.mock('../services/orderService', () => ({
   createOrder: vi.fn(),
   recordPayment: vi.fn(),
+}))
+
+vi.mock('../services/documentoService', () => ({
+  obtenerRecetaAceptada: vi.fn(),
 }))
 
 vi.mock('../lib/payment/paymentGateway', async (importOriginal) => ({
@@ -52,12 +57,24 @@ const storePedido = {
 
 const approved: ResultadoPago = { estado: 'aprobado', ultimos_digitos: '4242' }
 
+const recetaAceptada = {
+  id: 44,
+  usuario_id: '11111111-1111-1111-1111-111111111111',
+  nombre_archivo: 'receta.pdf',
+  tipo: 'receta' as const,
+  fecha_carga: '2026-10-22T04:00:00.000Z',
+  ubicacion_archivo: '11111111-1111-1111-1111-111111111111/receta/secret.pdf',
+  estado_recepcion: 'recibida' as const,
+}
+
 beforeEach(() => {
   vi.mocked(getAvailableProductById).mockReset()
   vi.mocked(processPayment).mockReset()
   vi.mocked(createOrder).mockReset()
   vi.mocked(recordPayment).mockReset()
   vi.mocked(recordPayment).mockResolvedValue(undefined)
+  vi.mocked(obtenerRecetaAceptada).mockReset()
+  vi.mocked(obtenerRecetaAceptada).mockResolvedValue(recetaAceptada)
 })
 
 afterEach(() => {
@@ -111,6 +128,31 @@ describe('PaymentPage: resumen y selector', () => {
 
     const image = container.querySelector('.pay__summary-media img')
     expect(image?.getAttribute('src')).toBe('/catalog/ARNETTEAN7225.webp')
+  })
+
+  it('muestra la receta recibida en el resumen del pedido', async () => {
+    vi.mocked(getAvailableProductById).mockResolvedValue(sample)
+
+    render(<PaymentPage productId={1} />)
+
+    expect(await screen.findByText('receta.pdf')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeEnabled()
+  })
+
+  it('pide cargar la receta y no deja pagar si no hay una recibida', async () => {
+    vi.mocked(getAvailableProductById).mockResolvedValue(sample)
+    vi.mocked(obtenerRecetaAceptada).mockResolvedValue(null)
+
+    render(<PaymentPage productId={1} />)
+
+    expect(await screen.findByText(PAYMENT_MESSAGES.recipeRequired)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Cargar receta' })).toHaveAttribute(
+      'href',
+      '/documentos',
+    )
+    expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Forma de pago')).not.toBeInTheDocument()
+    expect(createOrder).not.toHaveBeenCalled()
   })
 
   it('avisa cuando la montura no está disponible', async () => {
@@ -189,7 +231,11 @@ describe('PaymentPage: registro del pedido', () => {
     expect(screen.getByText('PED-000007')).toBeTruthy()
     expect(screen.getByText('Pagado')).toBeTruthy()
     expect(screen.getByText('Terminada en 4242')).toBeTruthy()
-    expect(createOrder).toHaveBeenCalledWith({ productId: 1, formaPago: 'tarjeta' })
+    expect(createOrder).toHaveBeenCalledWith({
+      productId: 1,
+      formaPago: 'tarjeta',
+      documentoId: 44,
+    })
     expect(recordPayment).toHaveBeenCalledWith({
       pedidoId: 7,
       estado: 'aprobado',
@@ -223,7 +269,11 @@ describe('PaymentPage: registro del pedido', () => {
     expect(await screen.findByText(PAYMENT_MESSAGES.storePending)).toBeTruthy()
     expect(screen.getByText('PED-000008')).toBeTruthy()
     expect(screen.getByText('Pendiente de pago')).toBeTruthy()
-    expect(createOrder).toHaveBeenCalledWith({ productId: 1, formaPago: 'tienda' })
+    expect(createOrder).toHaveBeenCalledWith({
+      productId: 1,
+      formaPago: 'tienda',
+      documentoId: 44,
+    })
     expect(processPayment).not.toHaveBeenCalled()
     expect(recordPayment).not.toHaveBeenCalled()
   })

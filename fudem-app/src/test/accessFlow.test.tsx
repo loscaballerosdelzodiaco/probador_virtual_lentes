@@ -46,6 +46,15 @@ vi.mock('../services/documentoService', () => ({
   listarDocumentos: vi.fn(async () => []),
   guardarDocumento: vi.fn(),
   descargarDocumento: vi.fn(),
+  obtenerRecetaAceptada: vi.fn(async () => ({
+    id: 44,
+    usuario_id: '11111111-1111-1111-1111-111111111111',
+    nombre_archivo: 'receta.pdf',
+    tipo: 'receta',
+    fecha_carga: '2026-10-22T04:00:00.000Z',
+    ubicacion_archivo: '11111111-1111-1111-1111-111111111111/receta/secret.pdf',
+    estado_recepcion: 'recibida',
+  })),
 }))
 
 async function fillRegistro() {
