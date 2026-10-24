@@ -4,7 +4,7 @@ import { phoneDigitCount } from './fieldMasks'
 export type RegistroErrors = Partial<Record<keyof NuevoUsuario, string>>
 
 const DUI_REGEX = /^\d{8}-\d$/
-const NAME_REGEX = /^[\p{L}](?:[\p{L}\s'-]*[\p{L}])?$/u
+export const NAME_REGEX =/^[\p{L}](?:[\p{L}\s'-]*[\p{L}])?$/u
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MIN_PASSWORD_LENGTH = 8
 const MIN_BIRTH_DATE = '1900-01-01'

@@ -4,6 +4,7 @@ import {
   PaymentMethodSelector,
   type PaymentMethod,
 } from '../components/PaymentMethodSelector'
+import { useCardForm } from '../lib/payment/useCardForm'
 import './PaymentPage.css'
 
 export type ResumenItem = {
@@ -34,12 +35,21 @@ function formatPrice(value: number) {
 
 /** HU5 / T2: maquetación del resumen del pedido y del formulario de pago. */
 export function PaymentPage({ items, message = null, onPay }: PaymentPageProps) {
-  // Único estado: mostrar u ocultar los campos de tarjeta
+  // Mostrar u ocultar los campos de tarjeta
   const [method, setMethod] = useState<PaymentMethod>('tarjeta')
+  const card = useCardForm()
   const total = items.reduce((sum, item) => sum + item.precio, 0)
+
+  function handleMethodChange(next: PaymentMethod) {
+    setMethod(next)
+    // RN2: los datos de la tarjeta no se conservan con pago en tienda
+    if (next !== 'tarjeta') card.reset()
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // T5 (A2, CA3): con datos de tarjeta inválidos no se realiza el cobro
+    if (method === 'tarjeta' && !card.validate()) return
     onPay?.()
   }
 
@@ -76,9 +86,9 @@ export function PaymentPage({ items, message = null, onPay }: PaymentPageProps) 
           </aside>
 
           <form className="payment__form" onSubmit={handleSubmit} noValidate>
-            <PaymentMethodSelector selected={method} onChange={setMethod} />
+            <PaymentMethodSelector selected={method} onChange={handleMethodChange} />
 
-            {method === 'tarjeta' ? <CardForm /> : null}
+            {method === 'tarjeta' ? <CardForm {...card.formProps} /> : null}
 
             <button type="submit" className="btn payment__submit">
               Pagar
