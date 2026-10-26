@@ -676,6 +676,28 @@ main {
   margin: 0;
 }
 
+.documentos-list__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.documentos-list__acciones .btn {
+  flex: 1 1 10rem;
+  min-height: 44px;
+}
+
+.documentos-alertas {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
+}
+
+.documentos-alert {
+  margin: 0;
+  padding: 1.25em 1.5em;
+}
+
 .auth-form {
   display: grid;
   gap: var(--space-4);

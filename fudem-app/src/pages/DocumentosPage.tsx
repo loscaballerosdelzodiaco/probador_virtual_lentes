@@ -7,14 +7,18 @@ import {
 } from '../lib/documentoErrores'
 import { MAX_DOCUMENTO_BYTES, validarArchivoDocumento } from '../lib/documentoStorage'
 import {
+  DOCUMENTO_ELIMINAR_ERROR_MESSAGE,
   DOCUMENTO_REGISTRO_ERROR_MESSAGE,
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
   descargarDocumento,
+  eliminarDocumento,
   guardarDocumento,
   listarDocumentos,
   type DocumentoCliente,
   type TipoDocumento,
 } from '../services/documentoService'
+
+export const DOCUMENTO_ALERT_DISMISS_MS = 8000
 
 const ESTADO_LABEL: Record<DocumentoCliente['estado_recepcion'], string> = {
   pendiente: 'Pendiente',
@@ -103,7 +107,13 @@ const TIPO_OPCIONES: Array<{
   },
 ]
 
-export function DocumentosPage() {
+export type DocumentosPageProps = {
+  alertDismissMs?: number
+}
+
+export function DocumentosPage({
+  alertDismissMs = DOCUMENTO_ALERT_DISMISS_MS,
+}: DocumentosPageProps = {}) {
   const [documentos, setDocumentos] = useState<DocumentoCliente[]>([])
   const [tipo, setTipo] = useState<TipoDocumento>('receta')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -116,6 +126,7 @@ export function DocumentosPage() {
   const [errorKind, setErrorKind] = useState<DocumentoErrorKind | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [reemplazando, setReemplazando] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const confirmacionRef = useRef<HTMLElement>(null)
@@ -169,6 +180,16 @@ export function DocumentosPage() {
     if (!reemplazando) return
     correccionRef.current?.focus()
   }, [reemplazando])
+
+  useEffect(() => {
+    if (!formError && !statusMessage) return
+    const timer = window.setTimeout(() => {
+      setFormError(null)
+      setErrorKind(null)
+      setStatusMessage(null)
+    }, alertDismissMs)
+    return () => window.clearTimeout(timer)
+  }, [alertDismissMs, formError, statusMessage])
 
   async function sincronizarDocumentos() {
     try {
@@ -313,6 +334,33 @@ export function DocumentosPage() {
       await sincronizarDocumentos()
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleDelete(documento: DocumentoCliente) {
+    if (isSubmitting || deletingId !== null) return
+    setFormError(null)
+    setErrorKind(null)
+    setStatusMessage(null)
+    setDeletingId(documento.id)
+
+    try {
+      await eliminarDocumento(documento)
+      setDocumentos((current) => current.filter((item) => item.id !== documento.id))
+      if (documento.tipo === 'receta') {
+        setReemplazando(false)
+        limpiarSeleccion()
+      }
+      setStatusMessage(
+        documento.tipo === 'receta' ? 'Receta eliminada.' : 'Documento eliminado.',
+      )
+    } catch (error: unknown) {
+      console.error(error)
+      const clasificado = clasificarErrorCarga(error)
+      setFormError(clasificado.message || DOCUMENTO_ELIMINAR_ERROR_MESSAGE)
+      setErrorKind(clasificado.kind)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -489,20 +537,24 @@ export function DocumentosPage() {
           </div>
         </form>
 
-        {formError ? (
-          <p className="notice notice--error" role="alert">
-            {formError}{' '}
-            {errorKind === 'validation'
-              ? DOCUMENTO_VALIDATION_HINT
-              : errorKind === 'temporary'
-                ? DOCUMENTO_TEMPORARY_HINT
-                : null}
-          </p>
-        ) : null}
-        {statusMessage ? (
-          <p className="notice notice--success" role="status">
-            {statusMessage}
-          </p>
+        {formError || statusMessage ? (
+          <div className="documentos-alertas">
+            {formError ? (
+              <p className="notice notice--error documentos-alert" role="alert">
+                {formError}{' '}
+                {errorKind === 'validation'
+                  ? DOCUMENTO_VALIDATION_HINT
+                  : errorKind === 'temporary'
+                    ? DOCUMENTO_TEMPORARY_HINT
+                    : null}
+              </p>
+            ) : null}
+            {statusMessage ? (
+              <p className="notice notice--success documentos-alert" role="status">
+                {statusMessage}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
         {!isLoading && !loadError && recetaConfirmada ? (
@@ -528,12 +580,20 @@ export function DocumentosPage() {
                 <button
                   type="button"
                   className="btn btn--outline"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || deletingId !== null}
                   onClick={iniciarReemplazo}
                 >
                   Reemplazar receta
                 </button>
               )}
+              <button
+                type="button"
+                className="btn btn--outline"
+                disabled={isSubmitting || deletingId !== null}
+                onClick={() => void handleDelete(recetaConfirmada)}
+              >
+                {deletingId === recetaConfirmada.id ? 'Eliminando…' : 'Eliminar receta'}
+              </button>
             </div>
           </section>
         ) : null}
@@ -578,13 +638,28 @@ export function DocumentosPage() {
                   {new Date(documento.fecha_carga).toLocaleString('es-SV')} ·{' '}
                   {ESTADO_LABEL[documento.estado_recepcion]}
                 </p>
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  onClick={() => void handleDownload(documento)}
-                >
-                  Descargar
-                </button>
+                <div className="documentos-list__acciones">
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    disabled={deletingId !== null}
+                    onClick={() => void handleDownload(documento)}
+                  >
+                    Descargar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    disabled={isSubmitting || deletingId !== null}
+                    onClick={() => void handleDelete(documento)}
+                  >
+                    {deletingId === documento.id
+                      ? 'Eliminando…'
+                      : documento.tipo === 'receta'
+                        ? 'Eliminar receta'
+                        : 'Eliminar'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

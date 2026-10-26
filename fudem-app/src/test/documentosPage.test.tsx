@@ -22,6 +22,7 @@ import {
 import {
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
   descargarDocumento,
+  eliminarDocumento,
   guardarDocumento,
   listarDocumentos,
   type DocumentoCliente,
@@ -36,6 +37,7 @@ vi.mock('../services/documentoService', async () => {
     listarDocumentos: vi.fn(),
     guardarDocumento: vi.fn(),
     descargarDocumento: vi.fn(),
+    eliminarDocumento: vi.fn(),
   }
 })
 
@@ -77,7 +79,9 @@ describe('DocumentosPage', () => {
     vi.mocked(listarDocumentos).mockReset()
     vi.mocked(guardarDocumento).mockReset()
     vi.mocked(descargarDocumento).mockReset()
+    vi.mocked(eliminarDocumento).mockReset()
     vi.mocked(listarDocumentos).mockResolvedValue([])
+    vi.mocked(eliminarDocumento).mockResolvedValue()
   })
 
   it('muestra un aviso amigable si falla la carga', async () => {
@@ -497,5 +501,64 @@ describe('DocumentosPage', () => {
     expect(
       screen.queryByRole('heading', { name: 'Receta recibida' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('oculta la alerta de calidad después de unos segundos', async () => {
+    vi.mocked(guardarDocumento).mockRejectedValue(
+      new CalidadInsuficienteError({
+        ok: false,
+        estado: DOCUMENTO_CALIDAD_INSUFICIENTE,
+        motivo: 'borrosa',
+        error: DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+      }),
+    )
+    const user = userEvent.setup()
+    render(<DocumentosPage alertDismissMs={40} />)
+
+    await screen.findByText('Todavía no has cargado recetas ni exámenes.')
+    await chooseFile(user, jpegFile())
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+    )
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  it('permite eliminar un examen ya ingresado', async () => {
+    const examen: DocumentoCliente = {
+      ...documentoRecibido('examen.png', 'recibida', 7),
+      tipo: 'examen',
+    }
+    vi.mocked(listarDocumentos).mockResolvedValue([examen])
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    expect(await screen.findByText(/examen\.png/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+    expect(eliminarDocumento).toHaveBeenCalledWith(examen)
+    expect(await screen.findByText('Documento eliminado.')).toBeInTheDocument()
+    expect(screen.queryByText(/examen\.png/)).not.toBeInTheDocument()
+  })
+
+  it('permite eliminar la receta recibida', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('mi-receta.pdf')])
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Receta recibida' })).toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Eliminar receta' })[0])
+
+    expect(eliminarDocumento).toHaveBeenCalledWith(
+      expect.objectContaining({ nombre_archivo: 'mi-receta.pdf', tipo: 'receta' }),
+    )
+    expect(await screen.findByText('Receta eliminada.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Aún no hemos recibido una receta para tu compra.'),
+    ).toBeInTheDocument()
   })
 })

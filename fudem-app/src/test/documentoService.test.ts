@@ -12,10 +12,13 @@ import {
   DOCUMENTO_FORMAT_ERROR_MESSAGE,
 } from '../lib/documentoStorage'
 import {
+  DOCUMENTO_ELIMINAR_ERROR_MESSAGE,
+  DOCUMENTO_EN_USO_ERROR_MESSAGE,
   DOCUMENTO_REGISTRO_ERROR_MESSAGE,
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
   buildDocumentoInsert,
   descargarDocumento,
+  eliminarDocumento,
   guardarDocumento,
   listarDocumentos,
   listarValidacion,
@@ -250,6 +253,56 @@ describe('documentoService', () => {
       expect.objectContaining({ estado_recepcion: 'recibida' }),
     )
     expect(remove).toHaveBeenCalled()
+  })
+
+  function mockDelete(result: { data: DocumentoCliente | null; error: unknown }) {
+    const maybeSingle = vi.fn().mockResolvedValue(result)
+    const eq = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        returns: vi.fn().mockReturnValue({ maybeSingle }),
+      }),
+    })
+    vi.mocked(supabase.from).mockReturnValue({
+      delete: vi.fn().mockReturnValue({ eq }),
+    } as never)
+    return eq
+  }
+
+  it('elimina el registro y el archivo del cliente', async () => {
+    mockSesion()
+    const eq = mockDelete({ data: documento, error: null })
+    const remove = vi.fn().mockResolvedValue({ data: [], error: null })
+    vi.mocked(supabase.storage.from).mockReturnValue({ remove } as never)
+
+    await expect(eliminarDocumento(documento)).resolves.toBeUndefined()
+    expect(eq).toHaveBeenCalledWith('id', documento.id)
+    expect(remove).toHaveBeenCalledWith([documento.ubicacion_archivo])
+  })
+
+  it('no da por eliminado un archivo si la base no borró la fila', async () => {
+    mockSesion()
+    mockDelete({ data: null, error: null })
+
+    await expect(eliminarDocumento(documento)).rejects.toThrow(DOCUMENTO_ELIMINAR_ERROR_MESSAGE)
+    expect(supabase.storage.from).not.toHaveBeenCalled()
+  })
+
+  it('explica si el archivo ya está asociado a un pedido', async () => {
+    mockSesion()
+    mockDelete({
+      data: null,
+      error: { code: '23503', message: 'foreign key restrict' },
+    })
+
+    await expect(eliminarDocumento(documento)).rejects.toThrow(DOCUMENTO_EN_USO_ERROR_MESSAGE)
+    expect(supabase.storage.from).not.toHaveBeenCalled()
+  })
+
+  it('explica un fallo genérico al eliminar', async () => {
+    mockSesion()
+    mockDelete({ data: null, error: { message: 'permission denied' } })
+
+    await expect(eliminarDocumento(documento)).rejects.toThrow(DOCUMENTO_ELIMINAR_ERROR_MESSAGE)
   })
 
   it('no descarga un archivo de otro usuario', async () => {

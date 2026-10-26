@@ -46,6 +46,7 @@ vi.mock('../services/documentoService', () => ({
   listarDocumentos: vi.fn(async () => []),
   guardarDocumento: vi.fn(),
   descargarDocumento: vi.fn(),
+  eliminarDocumento: vi.fn(),
   obtenerRecetaAceptada: vi.fn(async () => ({
     id: 44,
     usuario_id: '11111111-1111-1111-1111-111111111111',
@@ -88,6 +89,14 @@ describe('flujo de acceso', () => {
 
     expect(await screen.findByRole('heading', { name: 'Crear cuenta' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+  })
+
+  it('redirige al login si se abre la entrega sin sesión', async () => {
+    window.history.replaceState(null, '', '/entrega')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Forma de entrega' })).not.toBeInTheDocument()
   })
 
   it('redirige al login si se abren las recetas sin sesión', async () => {
