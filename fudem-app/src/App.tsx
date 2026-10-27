@@ -6,11 +6,7 @@ import {
   replaceLocation,
   type AppRoute,
 } from './lib/appRoute'
-import {
-  SAMPLE_DEPARTAMENTOS,
-  SAMPLE_MUNICIPIOS,
-  SAMPLE_SUCURSALES,
-} from './data/deliveryOptions'
+import { useDeliveryCatalogs } from './hooks/useDeliveryCatalogs'
 import { CatalogPage } from './pages/CatalogPage'
 import { DeliveryOptionsPage } from './pages/DeliveryOptionsPage'
 import { DocumentosPage } from './pages/DocumentosPage'
@@ -27,6 +23,40 @@ import {
   subscribeToAuthChanges,
 } from './services/authService'
 import './App.css'
+
+function EntregaRoute() {
+  const { departamentos, municipios, sucursales, loading, error } = useDeliveryCatalogs()
+
+  if (loading) {
+    return (
+      <section className="section">
+        <div className="container prose">
+          <p role="status">Cargando opciones de entrega…</p>
+        </div>
+      </section>
+    )
+  }
+
+  if (error) {
+    return (
+      <section className="section">
+        <div className="container prose">
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <DeliveryOptionsPage
+      departamentos={departamentos}
+      municipios={municipios}
+      sucursales={sucursales}
+    />
+  )
+}
 
 function App() {
   const [route, setRoute] = useState<AppRoute>(() => readAppRoute())
@@ -231,11 +261,7 @@ function App() {
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'entrega' ? (
-          <DeliveryOptionsPage
-            departamentos={SAMPLE_DEPARTAMENTOS}
-            municipios={SAMPLE_MUNICIPIOS}
-            sucursales={SAMPLE_SUCURSALES}
-          />
+          <EntregaRoute />
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'catalogo' ? (

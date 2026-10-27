@@ -38,6 +38,16 @@ vi.mock('../services/registroService', () => ({
   registrarUsuario: vi.fn(),
 }))
 
+vi.mock('../hooks/useDeliveryCatalogs', () => ({
+  useDeliveryCatalogs: () => ({
+    departamentos: [],
+    municipios: [],
+    sucursales: [],
+    loading: false,
+    error: null,
+  }),
+}))
+
 vi.mock('../services/documentoService', () => ({
   DOCUMENTOS_LOAD_ERROR_MESSAGE:
     'No pudimos cargar tus recetas y exámenes. Inténtalo de nuevo en unos momentos.',
