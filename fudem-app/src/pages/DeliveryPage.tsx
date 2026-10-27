@@ -87,44 +87,47 @@ async function idMunicipio(departamentoId: number | null, nombre: string | undef
   return data.id
 }
 
+type PedidoCarga = {
+  key: number | 'ultimo'
+  pedido: PedidoConEntrega | null
+  error: string | null
+}
+
 export function DeliveryPage({ pedidoId }: DeliveryPageProps) {
   const catalogs = useDeliveryCatalogs()
-  const [pedido, setPedido] = useState<PedidoConEntrega | null>(null)
-  const [pedidoLoading, setPedidoLoading] = useState(true)
-  const [pedidoError, setPedidoError] = useState<string | null>(null)
+  const requestKey = pedidoId ?? 'ultimo'
+  const [carga, setCarga] = useState<PedidoCarga | null>(null)
+  const pedidoLoading = carga?.key !== requestKey
+  const pedido = carga?.key === requestKey ? carga.pedido : null
+  const pedidoError = carga?.key === requestKey ? carga.error : null
 
   useEffect(() => {
     let active = true
-    setPedidoLoading(true)
-    setPedidoError(null)
-
     const load =
       pedidoId != null ? getPedidoConEntrega(pedidoId) : getUltimoPedidoConEntrega()
 
     load
       .then((row) => {
         if (!active) return
-        setPedido(row)
-        setPedidoError(null)
+        setCarga({ key: requestKey, pedido: row, error: null })
       })
       .catch((cause: unknown) => {
         if (!active) return
         console.error(cause)
-        setPedido(null)
-        setPedidoError(
-          cause instanceof Error && cause.message
-            ? cause.message
-            : PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE,
-        )
-      })
-      .finally(() => {
-        if (active) setPedidoLoading(false)
+        setCarga({
+          key: requestKey,
+          pedido: null,
+          error:
+            cause instanceof Error && cause.message
+              ? cause.message
+              : PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE,
+        })
       })
 
     return () => {
       active = false
     }
-  }, [pedidoId])
+  }, [pedidoId, requestKey])
 
   async function handleConfirm(selection: DeliverySelection) {
     const id = pedido?.id
@@ -139,7 +142,7 @@ export function DeliveryPage({ pedidoId }: DeliveryPageProps) {
     if (!refreshed?.entrega) {
       throw new Error(PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE)
     }
-    setPedido(refreshed)
+    setCarga({ key: requestKey, pedido: refreshed, error: null })
     if (pedidoId == null) replaceLocation(`/entrega#${refreshed.id}`)
   }
 
