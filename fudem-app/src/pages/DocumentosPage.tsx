@@ -7,14 +7,20 @@ import {
 } from '../lib/documentoErrores'
 import { MAX_DOCUMENTO_BYTES, validarArchivoDocumento } from '../lib/documentoStorage'
 import {
+  DOCUMENTO_ELIMINAR_ERROR_MESSAGE,
   DOCUMENTO_REGISTRO_ERROR_MESSAGE,
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
   descargarDocumento,
+  eliminarDocumento,
   guardarDocumento,
   listarDocumentos,
+  listarIdsDocumentoEnPedidos,
+  recetaAceptadaDe,
   type DocumentoCliente,
   type TipoDocumento,
 } from '../services/documentoService'
+
+export const DOCUMENTO_ALERT_DISMISS_MS = 8000
 
 const ESTADO_LABEL: Record<DocumentoCliente['estado_recepcion'], string> = {
   pendiente: 'Pendiente',
@@ -103,7 +109,13 @@ const TIPO_OPCIONES: Array<{
   },
 ]
 
-export function DocumentosPage() {
+export type DocumentosPageProps = {
+  alertDismissMs?: number
+}
+
+export function DocumentosPage({
+  alertDismissMs = DOCUMENTO_ALERT_DISMISS_MS,
+}: DocumentosPageProps = {}) {
   const [documentos, setDocumentos] = useState<DocumentoCliente[]>([])
   const [tipo, setTipo] = useState<TipoDocumento>('receta')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -116,13 +128,24 @@ export function DocumentosPage() {
   const [errorKind, setErrorKind] = useState<DocumentoErrorKind | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [reemplazando, setReemplazando] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [idsEnPedido, setIdsEnPedido] = useState<number[]>([])
+  const [mostrarConfirmacion, setMostrarConfirmacion] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const confirmacionRef = useRef<HTMLElement>(null)
   const correccionRef = useRef<HTMLElement>(null)
   const anunciarConfirmacion = useRef(false)
   const recetaConfirmada = recetaRecibida(documentos)
+  const recetaParaPedido = recetaAceptadaDe(documentos, idsEnPedido)
   const recetaParaCorregir = recetaConfirmada ?? recetaRechazada(documentos)
+  const recetasEnPedido = new Set(idsEnPedido)
+  const recetaConfirmadaEnUso = Boolean(
+    recetaConfirmada && recetasEnPedido.has(recetaConfirmada.id),
+  )
+  const recetaParaCorregirEnUso = Boolean(
+    recetaParaCorregir && recetasEnPedido.has(recetaParaCorregir.id),
+  )
   const nombreConfirmado = recetaConfirmada
     ? nombreArchivoVisible(recetaConfirmada.nombre_archivo)
     : null
@@ -138,10 +161,11 @@ export function DocumentosPage() {
   useEffect(() => {
     let active = true
 
-    listarDocumentos()
-      .then((rows) => {
+    Promise.all([listarDocumentos(), listarIdsDocumentoEnPedidos()])
+      .then(([rows, ids]) => {
         if (!active) return
         setDocumentos(rows)
+        setIdsEnPedido(ids)
         setLoadError(null)
       })
       .catch((error: unknown) => {
@@ -160,20 +184,35 @@ export function DocumentosPage() {
   }, [])
 
   useEffect(() => {
-    if (!anunciarConfirmacion.current || !recetaConfirmada) return
+    if (!mostrarConfirmacion || !anunciarConfirmacion.current || !recetaConfirmada) return
     anunciarConfirmacion.current = false
     confirmacionRef.current?.focus()
-  }, [recetaConfirmada])
+  }, [mostrarConfirmacion, recetaConfirmada])
 
   useEffect(() => {
     if (!reemplazando) return
     correccionRef.current?.focus()
   }, [reemplazando])
 
+  useEffect(() => {
+    if (!formError && !statusMessage && !mostrarConfirmacion) return
+    const timer = window.setTimeout(() => {
+      setFormError(null)
+      setErrorKind(null)
+      setStatusMessage(null)
+      setMostrarConfirmacion(false)
+    }, alertDismissMs)
+    return () => window.clearTimeout(timer)
+  }, [alertDismissMs, formError, statusMessage, mostrarConfirmacion])
+
   async function sincronizarDocumentos() {
     try {
-      const rows = await listarDocumentos()
+      const [rows, ids] = await Promise.all([
+        listarDocumentos(),
+        listarIdsDocumentoEnPedidos(),
+      ])
       setDocumentos(rows)
+      setIdsEnPedido(ids)
       setLoadError(null)
     } catch (error: unknown) {
       console.error(error)
@@ -227,7 +266,9 @@ export function DocumentosPage() {
   }
 
   function iniciarReemplazo() {
-    if (isSubmitting || !recetaParaCorregir) return
+    if (isSubmitting || !recetaParaCorregir || recetasEnPedido.has(recetaParaCorregir.id)) {
+      return
+    }
     limpiarSeleccion()
     setTipo('receta')
     setReemplazando(true)
@@ -291,6 +332,7 @@ export function DocumentosPage() {
 
       if (tipoEnvio === 'receta') {
         anunciarConfirmacion.current = true
+        setMostrarConfirmacion(true)
         setReemplazando(false)
       } else {
         setStatusMessage('Examen recibido y guardado.')
@@ -313,6 +355,35 @@ export function DocumentosPage() {
       await sincronizarDocumentos()
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  async function handleDelete(documento: DocumentoCliente) {
+    if (isSubmitting || deletingId !== null) return
+    if (documento.tipo === 'receta' && recetasEnPedido.has(documento.id)) return
+    setFormError(null)
+    setErrorKind(null)
+    setStatusMessage(null)
+    setDeletingId(documento.id)
+
+    try {
+      await eliminarDocumento(documento)
+      setDocumentos((current) => current.filter((item) => item.id !== documento.id))
+      if (documento.tipo === 'receta') {
+        setReemplazando(false)
+        setMostrarConfirmacion(false)
+        limpiarSeleccion()
+      }
+      setStatusMessage(
+        documento.tipo === 'receta' ? 'Receta eliminada.' : 'Documento eliminado.',
+      )
+    } catch (error: unknown) {
+      console.error(error)
+      const clasificado = clasificarErrorCarga(error)
+      setFormError(clasificado.message || DOCUMENTO_ELIMINAR_ERROR_MESSAGE)
+      setErrorKind(clasificado.kind)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -489,23 +560,27 @@ export function DocumentosPage() {
           </div>
         </form>
 
-        {formError ? (
-          <p className="notice notice--error" role="alert">
-            {formError}{' '}
-            {errorKind === 'validation'
-              ? DOCUMENTO_VALIDATION_HINT
-              : errorKind === 'temporary'
-                ? DOCUMENTO_TEMPORARY_HINT
-                : null}
-          </p>
-        ) : null}
-        {statusMessage ? (
-          <p className="notice notice--success" role="status">
-            {statusMessage}
-          </p>
+        {formError || statusMessage ? (
+          <div className="documentos-alertas">
+            {formError ? (
+              <p className="notice notice--error documentos-alert" role="alert">
+                {formError}{' '}
+                {errorKind === 'validation'
+                  ? DOCUMENTO_VALIDATION_HINT
+                  : errorKind === 'temporary'
+                    ? DOCUMENTO_TEMPORARY_HINT
+                    : null}
+              </p>
+            ) : null}
+            {statusMessage ? (
+              <p className="notice notice--success documentos-alert" role="status">
+                {statusMessage}
+              </p>
+            ) : null}
+          </div>
         ) : null}
 
-        {!isLoading && !loadError && recetaConfirmada ? (
+        {!isLoading && !loadError && mostrarConfirmacion && recetaConfirmada ? (
           <section
             ref={confirmacionRef}
             className="documentos-confirmacion"
@@ -524,24 +599,34 @@ export function DocumentosPage() {
               <a className="btn documentos-confirmacion__continuar" href="/catalogo">
                 Continuar con la compra
               </a>
-              {reemplazando ? null : (
+              {reemplazando || recetaConfirmadaEnUso ? null : (
                 <button
                   type="button"
                   className="btn btn--outline"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || deletingId !== null}
                   onClick={iniciarReemplazo}
                 >
                   Reemplazar receta
+                </button>
+              )}
+              {recetaConfirmadaEnUso ? null : (
+                <button
+                  type="button"
+                  className="btn btn--outline"
+                  disabled={isSubmitting || deletingId !== null}
+                  onClick={() => void handleDelete(recetaConfirmada)}
+                >
+                  {deletingId === recetaConfirmada.id ? 'Eliminando…' : 'Eliminar receta'}
                 </button>
               )}
             </div>
           </section>
         ) : null}
 
-        {!isLoading && !loadError && !recetaConfirmada && !reemplazando ? (
+        {!isLoading && !loadError && !recetaParaPedido && !mostrarConfirmacion && !reemplazando ? (
           <div className="documentos-estado">
             <p role="status">Aún no hemos recibido una receta para tu compra.</p>
-            {recetaParaCorregir ? (
+            {recetaParaCorregir && !recetaParaCorregirEnUso ? (
               <button
                 type="button"
                 className="btn btn--outline"
@@ -578,13 +663,40 @@ export function DocumentosPage() {
                   {new Date(documento.fecha_carga).toLocaleString('es-SV')} ·{' '}
                   {ESTADO_LABEL[documento.estado_recepcion]}
                 </p>
-                <button
-                  type="button"
-                  className="btn btn--outline"
-                  onClick={() => void handleDownload(documento)}
-                >
-                  Descargar
-                </button>
+                <div className="documentos-list__acciones">
+                  <button
+                    type="button"
+                    className="btn btn--outline"
+                    disabled={deletingId !== null}
+                    onClick={() => void handleDownload(documento)}
+                  >
+                    Descargar
+                  </button>
+                  {documento.tipo === 'receta' && !recetasEnPedido.has(documento.id) ? (
+                    <button
+                      type="button"
+                      className="btn btn--outline"
+                      disabled={isSubmitting || deletingId !== null}
+                      onClick={iniciarReemplazo}
+                    >
+                      Reemplazar receta
+                    </button>
+                  ) : null}
+                  {documento.tipo === 'receta' && recetasEnPedido.has(documento.id) ? null : (
+                    <button
+                      type="button"
+                      className="btn btn--outline"
+                      disabled={isSubmitting || deletingId !== null}
+                      onClick={() => void handleDelete(documento)}
+                    >
+                      {deletingId === documento.id
+                        ? 'Eliminando…'
+                        : documento.tipo === 'receta'
+                          ? 'Eliminar receta'
+                          : 'Eliminar'}
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

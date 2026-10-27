@@ -106,7 +106,7 @@ export function PaymentPage({ productId }: PaymentPageProps) {
             status: 'ready',
             product: {
               id: product.id,
-              nombre: product.nombre?.trim() || 'Montura',
+              nombre: product.nombre?.trim() || 'aro',
               precio: product.precio,
               imagenUrl: catalogImageSrc(product.url_imagen),
             },
@@ -313,7 +313,7 @@ export function PaymentPage({ productId }: PaymentPageProps) {
         </header>
 
         {productState.status === 'loading' ? (
-          <p role="status">Cargando montura…</p>
+          <p role="status">Cargando aro…</p>
         ) : null}
 
         {productState.status === 'error' ? (
@@ -411,8 +411,8 @@ export function PaymentPage({ productId }: PaymentPageProps) {
                       </div>
                     ) : null}
                   </dl>
-                  <a className="btn" href="/catalogo">
-                    Volver al catálogo
+                  <a className="btn" href={`/entrega#${confirmation.pedido.id}`}>
+                    Continuar a forma de entrega
                   </a>
                 </section>
               ) : recetaState.status === 'ready' ? (

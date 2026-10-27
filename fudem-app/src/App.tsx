@@ -7,6 +7,7 @@ import {
   type AppRoute,
 } from './lib/appRoute'
 import { CatalogPage } from './pages/CatalogPage'
+import { DeliveryPage } from './pages/DeliveryPage'
 import { DocumentosPage } from './pages/DocumentosPage'
 import { LoginPage } from './pages/LoginPage'
 import { PaymentPage } from './pages/PaymentPage'
@@ -141,14 +142,24 @@ function App() {
                 </a>
               </li>
               {canOpenCatalog ? (
-                <li className={route.name === 'documentos' ? 'is-active' : undefined}>
-                  <a
-                    href="/documentos"
-                    aria-current={route.name === 'documentos' ? 'page' : undefined}
-                  >
-                    Recetas
-                  </a>
-                </li>
+                <>
+                  <li className={route.name === 'documentos' ? 'is-active' : undefined}>
+                    <a
+                      href="/documentos"
+                      aria-current={route.name === 'documentos' ? 'page' : undefined}
+                    >
+                      Recetas
+                    </a>
+                  </li>
+                  <li className={route.name === 'entrega' ? 'is-active' : undefined}>
+                    <a
+                      href="/entrega"
+                      aria-current={route.name === 'entrega' ? 'page' : undefined}
+                    >
+                      Entrega
+                    </a>
+                  </li>
+                </>
               ) : null}
             </ul>
           </nav>
@@ -212,6 +223,10 @@ function App() {
 
         {!authLoading && canOpenCatalog && route.name === 'documentos' ? (
           <DocumentosPage />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name === 'entrega' ? (
+          <DeliveryPage pedidoId={route.pedidoId} />
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'catalogo' ? (

@@ -22,8 +22,10 @@ import {
 import {
   DOCUMENTOS_LOAD_ERROR_MESSAGE,
   descargarDocumento,
+  eliminarDocumento,
   guardarDocumento,
   listarDocumentos,
+  listarIdsDocumentoEnPedidos,
   type DocumentoCliente,
 } from '../services/documentoService'
 
@@ -34,8 +36,10 @@ vi.mock('../services/documentoService', async () => {
   return {
     ...actual,
     listarDocumentos: vi.fn(),
+    listarIdsDocumentoEnPedidos: vi.fn(),
     guardarDocumento: vi.fn(),
     descargarDocumento: vi.fn(),
+    eliminarDocumento: vi.fn(),
   }
 })
 
@@ -75,9 +79,13 @@ function provideFile(file: File, label = 'Archivo') {
 describe('DocumentosPage', () => {
   beforeEach(() => {
     vi.mocked(listarDocumentos).mockReset()
+    vi.mocked(listarIdsDocumentoEnPedidos).mockReset()
     vi.mocked(guardarDocumento).mockReset()
     vi.mocked(descargarDocumento).mockReset()
+    vi.mocked(eliminarDocumento).mockReset()
     vi.mocked(listarDocumentos).mockResolvedValue([])
+    vi.mocked(listarIdsDocumentoEnPedidos).mockResolvedValue([])
+    vi.mocked(eliminarDocumento).mockResolvedValue()
   })
 
   it('muestra un aviso amigable si falla la carga', async () => {
@@ -182,18 +190,47 @@ describe('DocumentosPage', () => {
     })
   })
 
-  it('mantiene visible la receta ya recibida y permite continuar la compra', async () => {
+  it('oculta la confirmación después de subir la receta', async () => {
+    vi.mocked(guardarDocumento).mockResolvedValue(documentoRecibido('receta.pdf'))
+    const user = userEvent.setup()
+    render(<DocumentosPage alertDismissMs={40} />)
+
+    await screen.findByText('Todavía no has cargado recetas ni exámenes.')
+    await chooseFile(user, jpegFile())
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('heading', { name: 'Receta recibida' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    })
+    expect(screen.getByText(/receta\.pdf/)).toBeInTheDocument()
+  })
+
+  it('no deja fija la confirmación de una receta ya cargada', async () => {
     vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('mi-receta.pdf')])
     render(<DocumentosPage />)
 
-    expect(await screen.findByRole('heading', { name: 'Receta recibida' })).toBeInTheDocument()
-    expect(screen.getByText(/utilizaremos durante tu compra/)).toBeInTheDocument()
-    expect(screen.getAllByText('mi-receta.pdf').length).toBeGreaterThan(0)
-    expect(screen.getByRole('link', { name: 'Continuar con la compra' })).toHaveAttribute(
-      'href',
-      '/catalogo',
-    )
+    expect(await screen.findByText(/mi-receta\.pdf/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/utilizaremos durante tu compra/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Continuar con la compra' })).not.toBeInTheDocument()
     expect(guardarDocumento).not.toHaveBeenCalled()
+  })
+
+  it('pide una receta nueva si la recibida ya se usó en un pedido', async () => {
+    const usada = documentoRecibido('mi-receta.pdf')
+    vi.mocked(listarDocumentos).mockResolvedValue([usada])
+    vi.mocked(listarIdsDocumentoEnPedidos).mockResolvedValue([usada.id])
+    render(<DocumentosPage />)
+
+    expect(
+      await screen.findByText('Aún no hemos recibido una receta para tu compra.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.getByText(/mi-receta\.pdf/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reemplazar receta' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Eliminar receta' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Descargar' })).toBeInTheDocument()
   })
 
   it('no confirma la receta si la recepción no quedó completada', async () => {
@@ -245,15 +282,13 @@ describe('DocumentosPage', () => {
     const user = userEvent.setup()
     render(<DocumentosPage />)
 
-    await screen.findByRole('heading', { name: 'Receta recibida' })
+    expect(await screen.findByText(/receta-ok\.pdf/)).toBeInTheDocument()
     await chooseFile(user, jpegFile('falla.jpg'))
     await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(DOCUMENTO_STORAGE_ERROR_MESSAGE)
-    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
-    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
-    expect(confirmacion).not.toHaveTextContent('falla.jpg')
-    expect(screen.getByText(/utilizaremos durante tu compra/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.getAllByText(/receta-ok\.pdf/).length).toBeGreaterThan(0)
   })
 
   it('no presenta como recibida una receta rechazada', async () => {
@@ -403,8 +438,8 @@ describe('DocumentosPage', () => {
     expect(screen.queryByRole('region', { name: 'Corrección de receta' })).not.toBeInTheDocument()
     expect(screen.queryByText('nueva-receta.jpg')).not.toBeInTheDocument()
     expect(screen.getByText('Archivo pendiente de selección')).toBeInTheDocument()
-    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
-    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.getByText(/receta-ok\.pdf/)).toBeInTheDocument()
     expect(guardarDocumento).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Recibir archivo' })).toBeDisabled()
   })
@@ -422,9 +457,8 @@ describe('DocumentosPage', () => {
     )
     expect(screen.getByText('Archivo no aceptado: receta.gif')).toBeInTheDocument()
     expect(screen.getByText('El archivo no se puede usar')).toBeInTheDocument()
-    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
-    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
-    expect(confirmacion).not.toHaveTextContent('receta.gif')
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.getAllByText(/receta-ok\.pdf/).length).toBeGreaterThan(0)
     expect(guardarDocumento).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeEnabled()
   })
@@ -442,9 +476,8 @@ describe('DocumentosPage', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmar reemplazo' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(DOCUMENTO_STORAGE_ERROR_MESSAGE)
-    const confirmacion = screen.getByRole('status', { name: 'Confirmación de receta' })
-    expect(confirmacion).toHaveTextContent('receta-ok.pdf')
-    expect(confirmacion).not.toHaveTextContent('nueva-receta.jpg')
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(screen.getAllByText(/receta-ok\.pdf/).length).toBeGreaterThan(0)
     expect(screen.getByRole('region', { name: 'Corrección de receta' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Reintentar' }))
@@ -497,5 +530,65 @@ describe('DocumentosPage', () => {
     expect(
       screen.queryByRole('heading', { name: 'Receta recibida' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('oculta la alerta de calidad después de unos segundos', async () => {
+    vi.mocked(guardarDocumento).mockRejectedValue(
+      new CalidadInsuficienteError({
+        ok: false,
+        estado: DOCUMENTO_CALIDAD_INSUFICIENTE,
+        motivo: 'borrosa',
+        error: DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+      }),
+    )
+    const user = userEvent.setup()
+    render(<DocumentosPage alertDismissMs={40} />)
+
+    await screen.findByText('Todavía no has cargado recetas ni exámenes.')
+    await chooseFile(user, jpegFile())
+    await user.click(screen.getByRole('button', { name: 'Recibir archivo' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      DOCUMENTO_CALIDAD_BORROSA_MESSAGE,
+    )
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  it('permite eliminar un examen ya ingresado', async () => {
+    const examen: DocumentoCliente = {
+      ...documentoRecibido('examen.png', 'recibida', 7),
+      tipo: 'examen',
+    }
+    vi.mocked(listarDocumentos).mockResolvedValue([examen])
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    expect(await screen.findByText(/examen\.png/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+    expect(eliminarDocumento).toHaveBeenCalledWith(examen)
+    expect(await screen.findByText('Documento eliminado.')).toBeInTheDocument()
+    expect(screen.queryByText(/examen\.png/)).not.toBeInTheDocument()
+  })
+
+  it('permite eliminar la receta recibida', async () => {
+    vi.mocked(listarDocumentos).mockResolvedValue([documentoRecibido('mi-receta.pdf')])
+    const user = userEvent.setup()
+    render(<DocumentosPage />)
+
+    expect(await screen.findByText(/mi-receta\.pdf/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Eliminar receta' }))
+
+    expect(eliminarDocumento).toHaveBeenCalledWith(
+      expect.objectContaining({ nombre_archivo: 'mi-receta.pdf', tipo: 'receta' }),
+    )
+    expect(await screen.findByText('Receta eliminada.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Receta recibida' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Aún no hemos recibido una receta para tu compra.'),
+    ).toBeInTheDocument()
   })
 })

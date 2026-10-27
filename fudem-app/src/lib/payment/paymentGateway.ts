@@ -22,7 +22,7 @@ export const TEST_CARD_NO_RESPONSE = '4000000000000119'
 export const SIMULATED_DELAY_MS = 1000
 
 const MIN_CARD_DIGITS = 13
-const MAX_CARD_DIGITS = 19
+const MAX_CARD_DIGITS = 16
 
 /** Solo para el mensaje de E1 (T8); la tabla pago no lo guarda. */
 export type MotivoRechazo = 'declinada' | 'fondos_insuficientes'

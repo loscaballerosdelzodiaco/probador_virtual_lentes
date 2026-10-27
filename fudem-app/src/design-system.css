@@ -187,8 +187,8 @@ a:hover { color: var(--color-accent-hover); }
 /* Pie de página: 5 columnas iguales que colapsan */
 .grid-footer {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: var(--gutter-tight);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-5);
 }
 @media (max-width: 980px) { .grid-footer { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 479px) { .grid-footer { grid-template-columns: 1fr; } }
@@ -217,13 +217,20 @@ a:hover { color: var(--color-accent-hover); }
 .nav a:hover,
 .nav .is-active > a { color: var(--color-secondary); }
 
-.site-footer { background: var(--color-bg-alt); padding: var(--space-7) 0 0; }
+.site-footer {
+  background: var(--color-bg-alt);
+  padding: var(--space-7) 0 0;
+  width: 100%;
+  max-width: 100%;
+}
 .site-footer h4 { color: var(--color-accent); }
 .site-footer__bottom {
   background: var(--color-secondary);
   color: var(--color-text-on-accent);
   padding: var(--space-3) 0;
   text-align: center;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* ---------- Botones ---------- */

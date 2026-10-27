@@ -33,7 +33,7 @@ vi.mock('../lib/payment/paymentGateway', async (importOriginal) => ({
 
 const sample = {
   id: 1,
-  nombre: 'Montura de prueba',
+  nombre: 'aro de prueba',
   precio: 99,
   sku: 'SKU-1',
   material: 'Metal',
@@ -115,7 +115,7 @@ describe('PaymentPage: resumen y selector', () => {
 
     render(<PaymentPage productId={1} />)
 
-    expect(await screen.findByText('Montura de prueba', { selector: 'p' })).toBeTruthy()
+    expect(await screen.findByText('aro de prueba', { selector: 'p' })).toBeTruthy()
     expect(screen.getAllByText(formatPrice(99))).toHaveLength(2)
     expect(getAvailableProductById).toHaveBeenCalledWith(1)
   })
@@ -124,7 +124,7 @@ describe('PaymentPage: resumen y selector', () => {
     vi.mocked(getAvailableProductById).mockResolvedValue(sample)
 
     const { container } = render(<PaymentPage productId={1} />)
-    await screen.findByText('Montura de prueba', { selector: 'p' })
+    await screen.findByText('aro de prueba', { selector: 'p' })
 
     const image = container.querySelector('.pay__summary-media img')
     expect(image?.getAttribute('src')).toBe('/catalog/ARNETTEAN7225.webp')
@@ -155,12 +155,12 @@ describe('PaymentPage: resumen y selector', () => {
     expect(createOrder).not.toHaveBeenCalled()
   })
 
-  it('avisa cuando la montura no está disponible', async () => {
+  it('avisa cuando la aro no está disponible', async () => {
     vi.mocked(getAvailableProductById).mockResolvedValue(null)
 
     render(<PaymentPage productId={99} />)
 
-    expect(await screen.findByText(/No encontramos esta montura/)).toBeTruthy()
+    expect(await screen.findByText(/No encontramos esta aro/)).toBeTruthy()
     expect(screen.queryByText('Forma de pago')).toBeNull()
   })
 
@@ -178,7 +178,7 @@ describe('PaymentPage: resumen y selector', () => {
     expect(screen.queryByText('Forma de pago')).toBeNull()
   })
 
-  it('no permite pagar una montura sin precio', async () => {
+  it('no permite pagar una aro sin precio', async () => {
     vi.mocked(getAvailableProductById).mockResolvedValue({
       ...sample,
       precio: null,
@@ -190,10 +190,10 @@ describe('PaymentPage: resumen y selector', () => {
     expect(screen.queryByRole('button', { name: 'Continuar' })).toBeNull()
   })
 
-  it('pide seleccionar una montura si la ruta no trae id', () => {
+  it('pide seleccionar una aro si la ruta no trae id', () => {
     render(<PaymentPage productId={null} />)
 
-    expect(screen.getByText(/No seleccionaste ninguna montura/)).toBeTruthy()
+    expect(screen.getByText(/No seleccionaste ninguna aro/)).toBeTruthy()
     expect(getAvailableProductById).not.toHaveBeenCalled()
   })
 

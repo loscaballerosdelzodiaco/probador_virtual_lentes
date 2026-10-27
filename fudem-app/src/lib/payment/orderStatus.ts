@@ -22,3 +22,24 @@ export type PedidoRegistrado = {
   numero: string
   estado: EstadoPedido
 }
+
+export type EntregaPedidoDomicilio = {
+  tipo: 'domicilio'
+  departamento: string
+  municipio: string
+  direccion: string
+  telefono: string
+}
+
+export type EntregaPedidoSucursal = {
+  tipo: 'sucursal'
+  sucursalNombre: string
+  sucursalDireccion: string
+}
+
+export type EntregaPedido = EntregaPedidoDomicilio | EntregaPedidoSucursal
+
+/** Pedido con su forma de entrega (HU6). `entrega` es null si aún no se confirmó. */
+export type PedidoConEntrega = PedidoRegistrado & {
+  entrega: EntregaPedido | null
+}

@@ -49,7 +49,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
     }
   }, [productId])
 
-  const title = product?.nombre?.trim() || 'Montura'
+  const title = product?.nombre?.trim() || 'aro'
 
   return (
     <section id="detalle" className="section">
@@ -59,7 +59,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
           {title}
         </nav>
 
-        {isLoading ? <p>Cargando montura…</p> : null}
+        {isLoading ? <p>Cargando aro…</p> : null}
         {loadError ? (
           <p className="notice notice--error" role="alert">
             {loadError}
@@ -67,7 +67,7 @@ export function ProductDetailPage({ productId }: ProductDetailPageProps) {
         ) : null}
         {!isLoading && !loadError && !product ? (
           <p className="notice" role="status">
-            No encontramos esta montura disponible.{' '}
+            No encontramos esta aro disponible.{' '}
             <a href="/catalogo">Volver al catálogo</a>
           </p>
         ) : null}
