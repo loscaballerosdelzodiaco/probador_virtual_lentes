@@ -20,7 +20,7 @@ const EXPIRY_REGEX = /^(\d{2})\/(\d{2})$/
 const DIGITS_REGEX = /^\d+$/
 const AMEX_REGEX = /^3[47]/
 const MIN_CARD_DIGITS = 13
-const MAX_CARD_DIGITS = 19
+const MAX_CARD_DIGITS = 16
 const MIN_HOLDER_LENGTH = 2
 const MAX_EXPIRY_YEARS = 20
 

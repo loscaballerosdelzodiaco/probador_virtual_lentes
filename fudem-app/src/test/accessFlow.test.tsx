@@ -38,6 +38,19 @@ vi.mock('../services/registroService', () => ({
   registrarUsuario: vi.fn(),
 }))
 
+vi.mock('../services/orderService', () => ({
+  PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE:
+    'No pudimos cargar el resumen de entrega. Inténtalo de nuevo en unos momentos.',
+  getPedidoConEntrega: vi.fn(async () => null),
+  getUltimoPedidoConEntrega: vi.fn(async () => null),
+  createOrder: vi.fn(),
+  recordPayment: vi.fn(),
+}))
+
+vi.mock('../services/deliveryService', () => ({
+  registrarEntrega: vi.fn(),
+}))
+
 vi.mock('../hooks/useDeliveryCatalogs', () => ({
   useDeliveryCatalogs: () => ({
     departamentos: [],
@@ -54,6 +67,8 @@ vi.mock('../services/documentoService', () => ({
   DOCUMENTO_REGISTRO_ERROR_MESSAGE:
     'No pudimos registrar el archivo. Inténtalo de nuevo en unos momentos.',
   listarDocumentos: vi.fn(async () => []),
+  listarIdsDocumentoEnPedidos: vi.fn(async () => []),
+  recetaAceptadaDe: vi.fn(() => null),
   guardarDocumento: vi.fn(),
   descargarDocumento: vi.fn(),
   eliminarDocumento: vi.fn(),
@@ -159,7 +174,7 @@ describe('flujo de acceso', () => {
     vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
     vi.mocked(getAvailableProductById).mockResolvedValue({
       id: 4,
-      nombre: 'Montura de prueba',
+      nombre: 'aro de prueba',
       precio: 99,
       sku: 'SKU-4',
       material: 'Metal',
@@ -173,19 +188,19 @@ describe('flujo de acceso', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Pago' })).toBeInTheDocument()
-    expect(await screen.findByText('Montura de prueba')).toBeInTheDocument()
+    expect(await screen.findByText('aro de prueba')).toBeInTheDocument()
     expect(getAvailableProductById).toHaveBeenCalledWith(4)
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
-  it('avisa en el pago si la montura no existe o no tiene precio (T10)', async () => {
+  it('avisa en el pago si la aro no existe o no tiene precio (T10)', async () => {
     vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
     vi.mocked(getAvailableProductById).mockResolvedValue(null)
     window.history.replaceState(null, '', '/pago#99')
     render(<App />)
 
     expect(
-      await screen.findByText(/No encontramos esta montura disponible para comprar/),
+      await screen.findByText(/No encontramos esta aro disponible para comprar/),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Volver al catálogo' })).toHaveAttribute(
       'href',

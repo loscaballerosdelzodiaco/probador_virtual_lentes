@@ -104,17 +104,42 @@ export async function listarDocumentos(): Promise<DocumentoCliente[]> {
 
 export function recetaAceptadaDe(
   documentos: DocumentoCliente[],
+  idsEnPedido: Iterable<number> = [],
 ): DocumentoCliente | null {
+  const usados = new Set(idsEnPedido)
   return (
     documentos.find(
       (documento) =>
-        documento.tipo === 'receta' && documento.estado_recepcion === 'recibida',
+        documento.tipo === 'receta' &&
+        documento.estado_recepcion === 'recibida' &&
+        !usados.has(documento.id),
     ) ?? null
   )
 }
 
+export async function listarIdsDocumentoEnPedidos(): Promise<number[]> {
+  const { data, error } = await supabase
+    .from('pedido')
+    .select('documento_id')
+    .not('documento_id', 'is', null)
+    .returns<{ documento_id: number }[]>()
+
+  if (error) {
+    throw new DocumentoCargaError(DOCUMENTOS_LOAD_ERROR_MESSAGE, 'temporary', {
+      cause: error,
+    })
+  }
+
+  return [...new Set((data ?? []).map((row) => row.documento_id))]
+}
+
+/** Receta recibida que todavía no está ligada a un pedido. */
 export async function obtenerRecetaAceptada(): Promise<DocumentoCliente | null> {
-  return recetaAceptadaDe(await listarDocumentos())
+  const [documentos, idsEnPedido] = await Promise.all([
+    listarDocumentos(),
+    listarIdsDocumentoEnPedidos(),
+  ])
+  return recetaAceptadaDe(documentos, idsEnPedido)
 }
 
 export async function registrarDocumento(

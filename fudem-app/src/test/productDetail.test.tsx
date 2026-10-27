@@ -35,7 +35,7 @@ describe('ProductDetail', () => {
     )
   })
 
-  it('no muestra Comprar si la montura no tiene precio o vale 0 (RN1)', () => {
+  it('no muestra Comprar si la aro no tiene precio o vale 0 (RN1)', () => {
     const { rerender } = render(<ProductDetail product={{ ...product, precio: null }} />)
     expect(screen.queryByRole('link', { name: 'Comprar' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Probar virtualmente' })).toBeInTheDocument()

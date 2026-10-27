@@ -14,6 +14,7 @@ export type MunicipioOption = {
 export type SucursalOption = {
   id: string
   nombre: string
+  direccion?: string
   activa?: boolean
 }
 

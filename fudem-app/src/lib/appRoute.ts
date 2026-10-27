@@ -4,12 +4,18 @@ export type AppRoute =
   | { name: 'catalogo'; productId: number | null }
   | { name: 'probador'; productId: number | null }
   | { name: 'pago'; productId: number | null }
-  | { name: 'entrega' }
+  | { name: 'entrega'; pedidoId: number | null }
   | { name: 'documentos' }
 
 export function productIdFromHash(hash: string): number | null {
   const value = hash.replace(/^#/, '')
-  if (!value || value === 'catalogo' || value === 'probador' || value === 'pago') {
+  if (
+    !value ||
+    value === 'catalogo' ||
+    value === 'probador' ||
+    value === 'pago' ||
+    value === 'entrega'
+  ) {
     return null
   }
   const id = Number(value)
@@ -32,7 +38,7 @@ export function readAppRoute(
   }
 
   if (path === '/entrega' || hashValue === 'entrega') {
-    return { name: 'entrega' }
+    return { name: 'entrega', pedidoId: productIdFromHash(hash) }
   }
 
   if (path === '/probador' || hashValue === 'probador') {

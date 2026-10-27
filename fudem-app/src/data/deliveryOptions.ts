@@ -17,6 +17,16 @@ export const SAMPLE_MUNICIPIOS: MunicipioOption[] = [
 ]
 
 export const SAMPLE_SUCURSALES: SucursalOption[] = [
-  { id: 'fudem-ss', nombre: 'FUDEM San Salvador', activa: true },
-  { id: 'fudem-sta', nombre: 'FUDEM Santa Tecla', activa: true },
+  {
+    id: 'fudem-ss',
+    nombre: 'FUDEM San Salvador',
+    direccion: 'Alameda Juan Pablo II, local 12, San Salvador',
+    activa: true,
+  },
+  {
+    id: 'fudem-sta',
+    nombre: 'FUDEM Santa Tecla',
+    direccion: 'Avenida Manuel Gallardo, centro comercial, Santa Tecla',
+    activa: true,
+  },
 ]

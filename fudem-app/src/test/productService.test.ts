@@ -39,7 +39,7 @@ vi.mock('../lib/supabase', () => ({
 
 const sample = {
   id: 1,
-  nombre: 'Montura de prueba',
+  nombre: 'aro de prueba',
   precio: 99,
   sku: 'SKU-1',
   material: 'Metal',

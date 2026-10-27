@@ -17,6 +17,7 @@ export const CATALOGOS_ENTREGA_LOAD_ERROR_MESSAGE =
 export type SucursalRegistro = {
   id: number
   nombre: string
+  direccion?: string | null
   activa: boolean
 }
 
@@ -45,11 +46,16 @@ export function filtrarSucursalesActivas(
 ): SucursalOption[] {
   return sucursales
     .filter((sucursal) => sucursal.activa === true)
-    .map((sucursal) => ({
-      id: String(sucursal.id),
-      nombre: sucursal.nombre,
-      activa: true,
-    }))
+    .map((sucursal) => {
+      const option: SucursalOption = {
+        id: String(sucursal.id),
+        nombre: sucursal.nombre,
+        activa: true,
+      }
+      const direccion = sucursal.direccion?.trim()
+      if (direccion) option.direccion = direccion
+      return option
+    })
 }
 
 /**
@@ -59,7 +65,7 @@ export function filtrarSucursalesActivas(
 export async function getSucursalesActivas(): Promise<SucursalOption[]> {
   const { data, error } = await supabase
     .from(SUCURSAL_TABLE)
-    .select('id, nombre, activa')
+    .select('id, nombre, direccion, activa')
     .eq('activa', true)
     .order('nombre', { ascending: true })
     .returns<SucursalRegistro[]>()

@@ -577,7 +577,7 @@ export function TryOnPage({
         <header className="try-on__header">
           <h1>Probador virtual</h1>
           <p>
-            Prueba monturas con la cámara o con una foto. Tu video y tus fotos
+            Prueba aros con la cámara o con una foto. Tu video y tus fotos
             no se guardan en el servidor.
           </p>
         </header>
@@ -706,6 +706,12 @@ export function TryOnPage({
               >
                 Capturar imagen
               </button>
+              <a
+                className="btn"
+                href={currentProductId ? `/pago#${currentProductId}` : '/catalogo'}
+              >
+                Comprar
+              </a>
               <p className="try-on__capture-hint">
                 La captura se descarga en tu dispositivo; no se envía al servidor.
               </p>

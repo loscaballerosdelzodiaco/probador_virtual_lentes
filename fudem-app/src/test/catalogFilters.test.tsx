@@ -44,9 +44,9 @@ function product(
 }
 
 const catalog = [
-  product(1, 'Montura Hombre 1', 'Hombres'),
-  product(2, 'Montura Mujer 1', 'Mujeres'),
-  product(3, 'Montura Hombre 2', 'Hombre'),
+  product(1, 'aro Hombre 1', 'Hombres'),
+  product(2, 'aro Mujer 1', 'Mujeres'),
+  product(3, 'aro Hombre 2', 'Hombre'),
 ]
 
 describe('filtros del catálogo por categoría', () => {
@@ -59,9 +59,9 @@ describe('filtros del catálogo por categoría', () => {
   it('muestra todos los productos cuando no hay categoría seleccionada', async () => {
     render(<App />)
 
-    expect(await screen.findByText('Montura Hombre 1')).toBeInTheDocument()
-    expect(screen.getByText('Montura Mujer 1')).toBeInTheDocument()
-    expect(screen.getByText('Montura Hombre 2')).toBeInTheDocument()
+    expect(await screen.findByText('aro Hombre 1')).toBeInTheDocument()
+    expect(screen.getByText('aro Mujer 1')).toBeInTheDocument()
+    expect(screen.getByText('aro Hombre 2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Todos' })).toHaveClass(
       'is-active',
     )
@@ -70,13 +70,13 @@ describe('filtros del catálogo por categoría', () => {
   it('al seleccionar Hombre solo muestra esa categoría', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByText('Montura Mujer 1')
+    await screen.findByText('aro Mujer 1')
 
     await user.click(screen.getByRole('button', { name: 'Hombre' }))
 
-    expect(screen.getByText('Montura Hombre 1')).toBeInTheDocument()
-    expect(screen.getByText('Montura Hombre 2')).toBeInTheDocument()
-    expect(screen.queryByText('Montura Mujer 1')).not.toBeInTheDocument()
+    expect(screen.getByText('aro Hombre 1')).toBeInTheDocument()
+    expect(screen.getByText('aro Hombre 2')).toBeInTheDocument()
+    expect(screen.queryByText('aro Mujer 1')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Hombre' })).toHaveClass(
       'is-active',
     )
@@ -85,13 +85,13 @@ describe('filtros del catálogo por categoría', () => {
   it('al seleccionar Mujer solo muestra esa categoría', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByText('Montura Hombre 1')
+    await screen.findByText('aro Hombre 1')
 
     await user.click(screen.getByRole('button', { name: 'Mujer' }))
 
-    expect(screen.getByText('Montura Mujer 1')).toBeInTheDocument()
-    expect(screen.queryByText('Montura Hombre 1')).not.toBeInTheDocument()
-    expect(screen.queryByText('Montura Hombre 2')).not.toBeInTheDocument()
+    expect(screen.getByText('aro Mujer 1')).toBeInTheDocument()
+    expect(screen.queryByText('aro Hombre 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('aro Hombre 2')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mujer' })).toHaveClass(
       'is-active',
     )
@@ -100,15 +100,15 @@ describe('filtros del catálogo por categoría', () => {
   it('vuelve a mostrar todos al quitar la categoría', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByText('Montura Mujer 1')
+    await screen.findByText('aro Mujer 1')
 
     await user.click(screen.getByRole('button', { name: 'Mujer' }))
-    expect(screen.queryByText('Montura Hombre 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('aro Hombre 1')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Todos' }))
 
-    expect(screen.getByText('Montura Hombre 1')).toBeInTheDocument()
-    expect(screen.getByText('Montura Mujer 1')).toBeInTheDocument()
-    expect(screen.getByText('Montura Hombre 2')).toBeInTheDocument()
+    expect(screen.getByText('aro Hombre 1')).toBeInTheDocument()
+    expect(screen.getByText('aro Mujer 1')).toBeInTheDocument()
+    expect(screen.getByText('aro Hombre 2')).toBeInTheDocument()
   })
 })

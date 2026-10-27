@@ -8,9 +8,9 @@ export function sanitizeName(value: string): string {
   return value.replace(/[^\p{L}\s'-]/gu, '')
 }
 
-/** HU5 / T5: número de tarjeta en grupos de 4, máximo 19 dígitos. */
+/** Número de tarjeta en 4 grupos de 4 (16 dígitos). */
 export function maskCardNumber(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 19)
+  const digits = value.replace(/\D/g, '').slice(0, 16)
   return digits.replace(/(\d{4})(?=\d)/g, '$1 ')
 }
 

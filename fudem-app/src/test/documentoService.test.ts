@@ -69,6 +69,30 @@ function mockSesion() {
   } as never)
 }
 
+function mockDocumentosYPedidos(
+  documentos: { data: unknown; error: unknown },
+  pedidos: { data: unknown; error: unknown } = { data: [], error: null },
+) {
+  const order = vi.fn().mockReturnValue({
+    returns: vi.fn().mockResolvedValue(documentos),
+  })
+  vi.mocked(supabase.from).mockImplementation((table) => {
+    if (table === 'pedido') {
+      return {
+        select: vi.fn().mockReturnValue({
+          not: vi.fn().mockReturnValue({
+            returns: vi.fn().mockResolvedValue(pedidos),
+          }),
+        }),
+      } as never
+    }
+    return {
+      select: vi.fn().mockReturnValue({ order }),
+    } as never
+  })
+  return { order }
+}
+
 describe('documentoService', () => {
   beforeEach(() => {
     vi.mocked(supabase.from).mockReset()
@@ -127,18 +151,40 @@ describe('documentoService', () => {
       estado_recepcion: 'pendiente' as const,
       nombre_archivo: 'borrador.jpg',
     }
-    const order = vi.fn().mockReturnValue({
-      returns: vi.fn().mockResolvedValue({
-        data: [pendiente, documento, examen],
-        error: null,
-      }),
+    mockDocumentosYPedidos({
+      data: [pendiente, documento, examen],
+      error: null,
     })
-    vi.mocked(supabase.from).mockReturnValue({
-      select: vi.fn().mockReturnValue({ order }),
-    } as never)
 
     expect(recetaAceptadaDe([pendiente, examen])).toBeNull()
     await expect(obtenerRecetaAceptada()).resolves.toEqual(documento)
+  })
+
+  it('no reutiliza una receta que ya está en un pedido', async () => {
+    mockSesion()
+    const recetaNueva = {
+      ...documento,
+      id: 8,
+      nombre_archivo: 'receta-nueva.pdf',
+    }
+    mockDocumentosYPedidos(
+      { data: [documento, recetaNueva], error: null },
+      { data: [{ documento_id: 1 }], error: null },
+    )
+
+    expect(recetaAceptadaDe([documento, recetaNueva], [1])).toEqual(recetaNueva)
+    await expect(obtenerRecetaAceptada()).resolves.toEqual(recetaNueva)
+  })
+
+  it('pide otra receta si la recibida ya se usó en un pedido', async () => {
+    mockSesion()
+    mockDocumentosYPedidos(
+      { data: [documento], error: null },
+      { data: [{ documento_id: 1 }], error: null },
+    )
+
+    expect(recetaAceptadaDe([documento], [1])).toBeNull()
+    await expect(obtenerRecetaAceptada()).resolves.toBeNull()
   })
 
   it('explica el fallo al cargar documentos sin el detalle técnico', async () => {

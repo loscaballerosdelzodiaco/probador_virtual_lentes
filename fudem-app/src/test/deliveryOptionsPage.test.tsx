@@ -93,10 +93,9 @@ describe('DeliveryOptionsPage', () => {
       direccion: 'Calle 1',
       telefono: '7000-0000',
     })
-    const resumen = screen.getByRole('complementary')
-    expect(resumen).toHaveTextContent('Envío a domicilio')
-    expect(resumen).toHaveTextContent('Soyapango')
-    expect(resumen).toHaveTextContent('Calle 1')
+    expect(
+      screen.getByText('Confirma una forma de entrega para ver el resumen aquí.'),
+    ).toBeInTheDocument()
   })
 
   it('deja solo envío a domicilio si no hay sucursales', () => {

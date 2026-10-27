@@ -34,7 +34,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </span>
       ) : (
         <a className="btn-loop" href={href}>
-          Ver montura
+          Ver aro
         </a>
       )}
     </li>

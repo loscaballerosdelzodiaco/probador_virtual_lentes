@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
+import { DeliverySummary } from '../components/DeliverySummary'
 import type {
   DeliveryMethod,
   DeliverySelection,
@@ -6,6 +7,7 @@ import type {
   MunicipioOption,
   SucursalOption,
 } from '../lib/delivery/types'
+import type { EntregaPedido } from '../lib/payment/orderStatus'
 import {
   DELIVERY_NO_BRANCHES_MESSAGE,
   DELIVERY_SAVE_ERROR_MESSAGE,
@@ -27,18 +29,15 @@ export type DeliveryOptionsPageProps = {
   departamentos?: DepartamentoOption[]
   municipios?: MunicipioOption[]
   sucursales?: SucursalOption[]
+  savedEntrega?: EntregaPedido | null
+  pedidoNumero?: string | null
+  summaryLoading?: boolean
+  summaryError?: string | null
   onConfirm?: (selection: DeliverySelection) => void | Promise<void>
 }
 
 function sucursalesActivas(sucursales: SucursalOption[]): SucursalOption[] {
   return sucursales.filter((sucursal) => sucursal.activa !== false)
-}
-
-function etiquetaDe(
-  items: Array<{ id: string; nombre: string }>,
-  id: string,
-): string {
-  return items.find((item) => item.id === id)?.nombre ?? id
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -57,6 +56,10 @@ export function DeliveryOptionsPage({
   departamentos = [],
   municipios = [],
   sucursales = [],
+  savedEntrega = null,
+  pedidoNumero = null,
+  summaryLoading = false,
+  summaryError = null,
   onConfirm,
 }: DeliveryOptionsPageProps) {
   const activas = useMemo(() => sucursalesActivas(sucursales), [sucursales])
@@ -68,7 +71,6 @@ export function DeliveryOptionsPage({
   const [direccion, setDireccion] = useState('')
   const [telefono, setTelefono] = useState('')
   const [sucursalId, setSucursalId] = useState('')
-  const [resumen, setResumen] = useState<DeliverySelection | null>(null)
   const [fieldErrors, setFieldErrors] = useState<DeliveryErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -83,7 +85,8 @@ export function DeliveryOptionsPage({
     sucursalId,
   }
   const liveErrors = validateDelivery(formData)
-  const canConfirm = !hasDeliveryErrors(liveErrors) && !saving
+  const locked = Boolean(savedEntrega)
+  const canConfirm = !locked && !hasDeliveryErrors(liveErrors) && !saving
 
   const municipiosDelDepartamento = useMemo(
     () => municipios.filter((municipio) => municipio.departamentoId === departamentoId),
@@ -102,7 +105,6 @@ export function DeliveryOptionsPage({
   function handleMethodChange(next: DeliveryMethod) {
     if (next === 'sucursal' && !puedeRetirar) return
     setMethod(next)
-    setResumen(null)
     setFieldErrors({})
     setSaveError(null)
   }
@@ -110,7 +112,6 @@ export function DeliveryOptionsPage({
   function handleDepartamentoChange(next: string) {
     setDepartamentoId(next)
     setMunicipioId('')
-    setResumen(null)
     clearFieldError('departamentoId')
     clearFieldError('municipioId')
   }
@@ -120,7 +121,7 @@ export function DeliveryOptionsPage({
     const errors = validateDelivery(formData)
     setFieldErrors(errors)
     setSaveError(null)
-    if (hasDeliveryErrors(errors) || !methodEfectivo || saving) return
+    if (hasDeliveryErrors(errors) || !methodEfectivo || saving || locked) return
 
     const selection: DeliverySelection =
       methodEfectivo === 'domicilio'
@@ -136,15 +137,11 @@ export function DeliveryOptionsPage({
             sucursalId,
           }
 
-    if (!onConfirm) {
-      setResumen(selection)
-      return
-    }
+    if (!onConfirm) return
 
     setSaving(true)
     try {
       await onConfirm(selection)
-      setResumen(selection)
     } catch (cause: unknown) {
       console.error(cause)
       setSaveError(DELIVERY_SAVE_ERROR_MESSAGE)
@@ -168,6 +165,11 @@ export function DeliveryOptionsPage({
         </header>
 
         <div className="delivery__layout">
+          {locked ? (
+            <p className="notice" role="status">
+              La forma de entrega de este pedido ya está confirmada y no se puede modificar.
+            </p>
+          ) : (
           <form className="delivery__panel" onSubmit={(event) => void handleConfirm(event)} noValidate>
             <fieldset className="delivery__methods">
               <legend>Opciones de entrega</legend>
@@ -276,7 +278,6 @@ export function DeliveryOptionsPage({
                     }
                     onChange={(event) => {
                       setMunicipioId(event.target.value)
-                      setResumen(null)
                       clearFieldError('municipioId')
                     }}
                   >
@@ -311,7 +312,6 @@ export function DeliveryOptionsPage({
                     }
                     onChange={(event) => {
                       setDireccion(event.target.value)
-                      setResumen(null)
                       clearFieldError('direccion')
                     }}
                   />
@@ -338,7 +338,6 @@ export function DeliveryOptionsPage({
                     }
                     onChange={(event) => {
                       setTelefono(event.target.value)
-                      setResumen(null)
                       clearFieldError('telefono')
                     }}
                   />
@@ -367,7 +366,6 @@ export function DeliveryOptionsPage({
                     }
                     onChange={(event) => {
                       setSucursalId(event.target.value)
-                      setResumen(null)
                       clearFieldError('sucursalId')
                     }}
                   >
@@ -393,53 +391,14 @@ export function DeliveryOptionsPage({
               {saving ? 'Guardando…' : 'Confirmar'}
             </button>
           </form>
+          )}
 
-          <aside className="delivery__panel" aria-labelledby="entrega-resumen-title">
-            <h2 id="entrega-resumen-title" className="delivery__title">
-              Resumen de entrega
-            </h2>
-            {resumen ? (
-              <dl className="delivery__summary-rows">
-                <div className="delivery__summary-row">
-                  <dt>Forma</dt>
-                  <dd>
-                    {resumen.method === 'domicilio'
-                      ? 'Envío a domicilio'
-                      : 'Retiro en sucursal'}
-                  </dd>
-                </div>
-                {resumen.method === 'domicilio' ? (
-                  <>
-                    <div className="delivery__summary-row">
-                      <dt>Departamento</dt>
-                      <dd>{etiquetaDe(departamentos, resumen.departamentoId) || '—'}</dd>
-                    </div>
-                    <div className="delivery__summary-row">
-                      <dt>Municipio</dt>
-                      <dd>{etiquetaDe(municipios, resumen.municipioId) || '—'}</dd>
-                    </div>
-                    <div className="delivery__summary-row">
-                      <dt>Dirección</dt>
-                      <dd>{resumen.direccion.trim() || '—'}</dd>
-                    </div>
-                    <div className="delivery__summary-row">
-                      <dt>Teléfono</dt>
-                      <dd>{resumen.telefono.trim() || '—'}</dd>
-                    </div>
-                  </>
-                ) : (
-                  <div className="delivery__summary-row">
-                    <dt>Sucursal</dt>
-                    <dd>{etiquetaDe(activas, resumen.sucursalId) || '—'}</dd>
-                  </div>
-                )}
-              </dl>
-            ) : (
-              <p className="delivery__empty">
-                Confirma una forma de entrega para ver el resumen aquí.
-              </p>
-            )}
-          </aside>
+          <DeliverySummary
+            entrega={savedEntrega}
+            pedidoNumero={pedidoNumero}
+            loading={summaryLoading}
+            error={summaryError}
+          />
         </div>
       </div>
     </section>

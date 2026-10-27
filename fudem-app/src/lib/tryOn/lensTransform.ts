@@ -15,7 +15,7 @@ const DEFAULT_ADJUST: LensManualAdjust = {
   rotation: 0,
 }
 
-/** El aro cubre más que la distancia entre pupilas (montura + aros). */
+/** El aro cubre más que la distancia entre pupilas (aro + aros). */
 export const LENS_WIDTH_OVER_IPD = 2.15
 
 function imageSize(image: CanvasImageSource): { width: number; height: number } | null {
