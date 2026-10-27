@@ -6,6 +6,7 @@ export type AppRoute =
   | { name: 'pago'; productId: number | null }
   | { name: 'entrega'; pedidoId: number | null }
   | { name: 'documentos' }
+  | { name: 'devoluciones' }
 
 export function productIdFromHash(hash: string): number | null {
   const value = hash.replace(/^#/, '')
@@ -14,7 +15,8 @@ export function productIdFromHash(hash: string): number | null {
     value === 'catalogo' ||
     value === 'probador' ||
     value === 'pago' ||
-    value === 'entrega'
+    value === 'entrega' ||
+    value === 'devoluciones'
   ) {
     return null
   }
@@ -35,6 +37,11 @@ export function readAppRoute(
 
   if (path === '/documentos' || hashValue === 'documentos') {
     return { name: 'documentos' }
+  }
+
+  // HU7: solicitud de devolución y consulta de estado
+  if (path === '/devoluciones' || hashValue === 'devoluciones') {
+    return { name: 'devoluciones' }
   }
 
   if (path === '/entrega' || hashValue === 'entrega') {
@@ -67,7 +74,8 @@ export function isProtectedRoute(route: AppRoute): boolean {
     route.name === 'probador' ||
     route.name === 'documentos' ||
     route.name === 'pago' ||
-    route.name === 'entrega'
+    route.name === 'entrega' ||
+    route.name === 'devoluciones'
   )
 }
 
