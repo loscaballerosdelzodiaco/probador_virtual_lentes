@@ -6,6 +6,13 @@ import type {
   MunicipioOption,
   SucursalOption,
 } from '../lib/delivery/types'
+import {
+  DELIVERY_NO_BRANCHES_MESSAGE,
+  DELIVERY_SAVE_ERROR_MESSAGE,
+  hasDeliveryErrors,
+  validateDelivery,
+  type DeliveryErrors,
+} from '../lib/delivery/validateDelivery'
 import './DeliveryPage.css'
 
 export type {
@@ -20,10 +27,8 @@ export type DeliveryOptionsPageProps = {
   departamentos?: DepartamentoOption[]
   municipios?: MunicipioOption[]
   sucursales?: SucursalOption[]
-  onConfirm?: (selection: DeliverySelection) => void
+  onConfirm?: (selection: DeliverySelection) => void | Promise<void>
 }
-
-const NO_BRANCHES_MESSAGE = 'No hay sucursales disponibles para retiro'
 
 function sucursalesActivas(sucursales: SucursalOption[]): SucursalOption[] {
   return sucursales.filter((sucursal) => sucursal.activa !== false)
@@ -36,9 +41,17 @@ function etiquetaDe(
   return items.find((item) => item.id === id)?.nombre ?? id
 }
 
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null
+  return (
+    <p id={id} className="delivery__error" role="alert">
+      {message}
+    </p>
+  )
+}
+
 /**
- * HU6: forma de entrega. La UI cambia según la opción elegida.
- * Las listas y el guardado se inyectan por props; este componente no los carga.
+ * HU6: forma de entrega. Las listas y el guardado se inyectan por props.
  */
 export function DeliveryOptionsPage({
   departamentos = [],
@@ -56,28 +69,58 @@ export function DeliveryOptionsPage({
   const [telefono, setTelefono] = useState('')
   const [sucursalId, setSucursalId] = useState('')
   const [resumen, setResumen] = useState<DeliverySelection | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<DeliveryErrors>({})
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
   const methodEfectivo: DeliveryMethod | null = puedeRetirar ? method : 'domicilio'
+  const formData = {
+    method: methodEfectivo,
+    departamentoId,
+    municipioId,
+    direccion,
+    telefono,
+    sucursalId,
+  }
+  const liveErrors = validateDelivery(formData)
+  const canConfirm = !hasDeliveryErrors(liveErrors) && !saving
 
   const municipiosDelDepartamento = useMemo(
     () => municipios.filter((municipio) => municipio.departamentoId === departamentoId),
     [departamentoId, municipios],
   )
 
+  function clearFieldError(field: keyof DeliveryErrors) {
+    setFieldErrors((current) => {
+      if (!current[field]) return current
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
+  }
+
   function handleMethodChange(next: DeliveryMethod) {
     if (next === 'sucursal' && !puedeRetirar) return
     setMethod(next)
     setResumen(null)
+    setFieldErrors({})
+    setSaveError(null)
   }
 
   function handleDepartamentoChange(next: string) {
     setDepartamentoId(next)
     setMunicipioId('')
     setResumen(null)
+    clearFieldError('departamentoId')
+    clearFieldError('municipioId')
   }
 
-  function handleConfirm(event: FormEvent<HTMLFormElement>) {
+  async function handleConfirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!methodEfectivo) return
+    const errors = validateDelivery(formData)
+    setFieldErrors(errors)
+    setSaveError(null)
+    if (hasDeliveryErrors(errors) || !methodEfectivo || saving) return
 
     const selection: DeliverySelection =
       methodEfectivo === 'domicilio'
@@ -85,17 +128,32 @@ export function DeliveryOptionsPage({
             method: 'domicilio',
             departamentoId,
             municipioId,
-            direccion,
-            telefono,
+            direccion: direccion.trim(),
+            telefono: telefono.trim(),
           }
         : {
             method: 'sucursal',
             sucursalId,
           }
 
-    setResumen(selection)
-    onConfirm?.(selection)
+    if (!onConfirm) {
+      setResumen(selection)
+      return
+    }
+
+    setSaving(true)
+    try {
+      await onConfirm(selection)
+      setResumen(selection)
+    } catch (cause: unknown) {
+      console.error(cause)
+      setSaveError(DELIVERY_SAVE_ERROR_MESSAGE)
+    } finally {
+      setSaving(false)
+    }
   }
+
+  const shownErrors = { ...liveErrors, ...fieldErrors }
 
   return (
     <section className="section delivery">
@@ -110,7 +168,7 @@ export function DeliveryOptionsPage({
         </header>
 
         <div className="delivery__layout">
-          <form className="delivery__panel" onSubmit={handleConfirm} noValidate>
+          <form className="delivery__panel" onSubmit={(event) => void handleConfirm(event)} noValidate>
             <fieldset className="delivery__methods">
               <legend>Opciones de entrega</legend>
               <label
@@ -154,26 +212,37 @@ export function DeliveryOptionsPage({
                   <small>
                     {puedeRetirar
                       ? 'Eliges la sucursal donde recogerás el pedido.'
-                      : NO_BRANCHES_MESSAGE}
+                      : DELIVERY_NO_BRANCHES_MESSAGE}
                   </small>
                 </span>
               </label>
             </fieldset>
+            <FieldError id="entrega-method-error" message={shownErrors.method} />
 
             {!puedeRetirar ? (
               <p className="notice delivery__notice" role="status">
-                {NO_BRANCHES_MESSAGE}
+                {DELIVERY_NO_BRANCHES_MESSAGE}
               </p>
             ) : null}
 
             {methodEfectivo === 'domicilio' ? (
               <div className="delivery__fields">
-                <div className="delivery__field">
+                <div
+                  className={
+                    shownErrors.departamentoId
+                      ? 'delivery__field delivery__field--invalid'
+                      : 'delivery__field'
+                  }
+                >
                   <label htmlFor="entrega-departamento">Departamento</label>
                   <select
                     id="entrega-departamento"
                     name="departamento"
                     value={departamentoId}
+                    aria-invalid={Boolean(shownErrors.departamentoId)}
+                    aria-errormessage={
+                      shownErrors.departamentoId ? 'entrega-departamento-error' : undefined
+                    }
                     onChange={(event) => handleDepartamentoChange(event.target.value)}
                   >
                     <option value="">Selecciona un departamento</option>
@@ -183,17 +252,32 @@ export function DeliveryOptionsPage({
                       </option>
                     ))}
                   </select>
+                  <FieldError
+                    id="entrega-departamento-error"
+                    message={shownErrors.departamentoId}
+                  />
                 </div>
-                <div className="delivery__field">
+                <div
+                  className={
+                    shownErrors.municipioId
+                      ? 'delivery__field delivery__field--invalid'
+                      : 'delivery__field'
+                  }
+                >
                   <label htmlFor="entrega-municipio">Municipio</label>
                   <select
                     id="entrega-municipio"
                     name="municipio"
                     value={municipioId}
                     disabled={!departamentoId}
+                    aria-invalid={Boolean(shownErrors.municipioId)}
+                    aria-errormessage={
+                      shownErrors.municipioId ? 'entrega-municipio-error' : undefined
+                    }
                     onChange={(event) => {
                       setMunicipioId(event.target.value)
                       setResumen(null)
+                      clearFieldError('municipioId')
                     }}
                   >
                     <option value="">
@@ -207,48 +291,84 @@ export function DeliveryOptionsPage({
                       </option>
                     ))}
                   </select>
+                  <FieldError id="entrega-municipio-error" message={shownErrors.municipioId} />
                 </div>
-                <div className="delivery__field">
+                <div
+                  className={
+                    shownErrors.direccion
+                      ? 'delivery__field delivery__field--invalid'
+                      : 'delivery__field'
+                  }
+                >
                   <label htmlFor="entrega-direccion">Dirección de entrega</label>
                   <textarea
                     id="entrega-direccion"
                     name="direccion"
                     value={direccion}
+                    aria-invalid={Boolean(shownErrors.direccion)}
+                    aria-errormessage={
+                      shownErrors.direccion ? 'entrega-direccion-error' : undefined
+                    }
                     onChange={(event) => {
                       setDireccion(event.target.value)
                       setResumen(null)
+                      clearFieldError('direccion')
                     }}
                   />
+                  <FieldError id="entrega-direccion-error" message={shownErrors.direccion} />
                 </div>
-                <div className="delivery__field">
+                <div
+                  className={
+                    shownErrors.telefono
+                      ? 'delivery__field delivery__field--invalid'
+                      : 'delivery__field'
+                  }
+                >
                   <label htmlFor="entrega-telefono">Teléfono de contacto</label>
                   <input
                     id="entrega-telefono"
                     name="telefono"
                     type="text"
-                    inputMode="tel"
+                    inputMode="numeric"
                     autoComplete="tel"
                     value={telefono}
+                    aria-invalid={Boolean(shownErrors.telefono)}
+                    aria-errormessage={
+                      shownErrors.telefono ? 'entrega-telefono-error' : undefined
+                    }
                     onChange={(event) => {
                       setTelefono(event.target.value)
                       setResumen(null)
+                      clearFieldError('telefono')
                     }}
                   />
+                  <FieldError id="entrega-telefono-error" message={shownErrors.telefono} />
                 </div>
               </div>
             ) : null}
 
             {methodEfectivo === 'sucursal' && puedeRetirar ? (
               <div className="delivery__fields">
-                <div className="delivery__field">
+                <div
+                  className={
+                    shownErrors.sucursalId
+                      ? 'delivery__field delivery__field--invalid'
+                      : 'delivery__field'
+                  }
+                >
                   <label htmlFor="entrega-sucursal">Sucursal</label>
                   <select
                     id="entrega-sucursal"
                     name="sucursal"
                     value={sucursalId}
+                    aria-invalid={Boolean(shownErrors.sucursalId)}
+                    aria-errormessage={
+                      shownErrors.sucursalId ? 'entrega-sucursal-error' : undefined
+                    }
                     onChange={(event) => {
                       setSucursalId(event.target.value)
                       setResumen(null)
+                      clearFieldError('sucursalId')
                     }}
                   >
                     <option value="">Selecciona una sucursal</option>
@@ -258,12 +378,19 @@ export function DeliveryOptionsPage({
                       </option>
                     ))}
                   </select>
+                  <FieldError id="entrega-sucursal-error" message={shownErrors.sucursalId} />
                 </div>
               </div>
             ) : null}
 
-            <button className="btn delivery__submit" type="submit" disabled={!methodEfectivo}>
-              Confirmar
+            {saveError ? (
+              <p className="notice notice--error delivery__notice" role="alert">
+                {saveError}
+              </p>
+            ) : null}
+
+            <button className="btn delivery__submit" type="submit" disabled={!canConfirm}>
+              {saving ? 'Guardando…' : 'Confirmar'}
             </button>
           </form>
 

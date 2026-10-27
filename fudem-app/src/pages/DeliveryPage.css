@@ -151,3 +151,27 @@
 .delivery__notice {
   margin: 0 0 var(--space-4);
 }
+
+.delivery__field--invalid input,
+.delivery__field--invalid select,
+.delivery__field--invalid textarea,
+.delivery__field--invalid input:hover,
+.delivery__field--invalid select:hover,
+.delivery__field--invalid textarea:hover {
+  border-color: var(--color-error);
+}
+
+.delivery__field--invalid input:focus,
+.delivery__field--invalid select:focus,
+.delivery__field--invalid textarea:focus {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 3px rgba(184, 28, 35, 0.15);
+}
+
+.delivery__error {
+  margin: 0;
+  padding: var(--space-1) 0 0;
+  color: var(--color-error);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
