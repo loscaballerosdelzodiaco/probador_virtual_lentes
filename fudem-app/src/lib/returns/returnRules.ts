@@ -57,8 +57,7 @@ export const ESTADO_DEVOLUCION_LABEL: Record<EstadoDevolucion, string> = {
 export const MSG_OUT_OF_WINDOW = RETURN_MESSAGES.outOfWindow // A1
 export const MSG_ALREADY_REQUESTED = RETURN_MESSAGES.alreadyRequested // A2
 export const MSG_NO_ORDERS = 'No tienes pedidos disponibles para devolución' // A3
-export const MSG_SAVE_ERROR =
-  'No se pudo registrar la devolución, intenta de nuevo más tarde' // E1 / CA6
+export const MSG_SAVE_ERROR = RETURN_MESSAGES.saveError // E1 / CA6
 
 export const DELIVERED_ORDERS_LOAD_ERROR_MESSAGE =
   'No pudimos cargar tus pedidos entregados. Inténtalo de nuevo en unos momentos.'
@@ -66,10 +65,20 @@ export const DELIVERED_ORDERS_LOAD_ERROR_MESSAGE =
 export const RETURNS_LOAD_ERROR_MESSAGE =
   'No pudimos cargar tus devoluciones. Inténtalo de nuevo en unos momentos.'
 
-export const MSG_REASON_REQUIRED = 'Selecciona el motivo de la devolución.' // RN5
-export const MSG_METHOD_REQUIRED = 'Selecciona la forma de devolución.'
-export const MSG_CONDITIONS_REQUIRED =
-  'Debes confirmar que los lentes están sin uso y en su empaque original.' // RN3
+const SUBMIT_MESSAGES: readonly string[] = [
+  RETURN_MESSAGES.notDelivered,
+  RETURN_MESSAGES.outOfWindow,
+  RETURN_MESSAGES.alreadyRequested,
+  RETURN_MESSAGES.saveError,
+]
+
+/** Mensaje para el cliente al fallar el registro: nunca el texto técnico. */
+export function returnSubmitMessage(error: unknown): string {
+  if (error instanceof Error && SUBMIT_MESSAGES.includes(error.message)) {
+    return error.message
+  }
+  return RETURN_MESSAGES.saveError
+}
 
 type OrderForRules = { id: number; estado: EstadoPedido; fechaEntrega: string | null }
 type ReturnForRules = { pedidoId: number; estado: EstadoDevolucion }

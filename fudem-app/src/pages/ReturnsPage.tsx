@@ -1,23 +1,27 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import './ReturnsPage.css'
 import { useDeliveredOrders } from '../hooks/useDeliveredOrders'
+import { RETURN_MESSAGES } from '../lib/returns/messages'
 import {
   ESTADO_DEVOLUCION_LABEL,
   FORMA_DEVOLUCION,
   FORMA_DEVOLUCION_LABEL,
-  MSG_CONDITIONS_REQUIRED,
-  MSG_METHOD_REQUIRED,
   MSG_NO_ORDERS,
-  MSG_REASON_REQUIRED,
-  MSG_SAVE_ERROR,
   RETURNS_LOAD_ERROR_MESSAGE,
   RETURN_CONDITIONS_TEXT,
   RETURN_REASONS,
   RETURN_WINDOW_DAYS,
   evaluateEligibility,
+  returnSubmitMessage,
   type FormaDevolucion,
   type ReturnReason,
 } from '../lib/returns/returnRules'
+import {
+  hasReturnErrors,
+  validateReturnForm,
+  type ReturnErrors,
+  type ReturnField,
+} from '../lib/returns/validateReturn'
 import {
   createDevolucion,
   getMisDevoluciones,
@@ -37,6 +41,21 @@ function formatDate(iso: string | null) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('es-SV', { style: 'currency', currency: 'USD' }).format(value)
+}
+
+const FIELD_ERROR_ID: Record<ReturnField, string> = {
+  motivo: 'devolucion-motivo-error',
+  forma: 'devolucion-forma-error',
+  condicionesConfirmadas: 'devolucion-condiciones-error',
+}
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null
+  return (
+    <p id={id} className="returns__error" role="alert">
+      {message}
+    </p>
+  )
 }
 
 export function ReturnsPage() {
@@ -64,10 +83,16 @@ export function ReturnsPage() {
   const [forma, setForma] = useState<FormaDevolucion | ''>('')
   const [comentarios, setComentarios] = useState('')
   const [confirmaCondiciones, setConfirmaCondiciones] = useState(false)
-  const [formErrors, setFormErrors] = useState<string[]>([])
+  const [formErrors, setFormErrors] = useState<ReturnErrors>({})
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [lastCreated, setLastCreated] = useState<Devolucion | null>(null)
+
+  // Evita un segundo envío antes de que React deshabilite el botón.
+  const submittingRef = useRef(false)
+  const motivoRef = useRef<HTMLSelectElement>(null)
+  const formaRef = useRef<HTMLInputElement>(null)
+  const condicionesRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let active = true
@@ -113,8 +138,23 @@ export function ReturnsPage() {
     setForma('')
     setComentarios('')
     setConfirmaCondiciones(false)
-    setFormErrors([])
+    setFormErrors({})
     setSubmitError(null)
+  }
+
+  function clearFieldError(field: ReturnField) {
+    setFormErrors((current) => {
+      if (!current[field]) return current
+      const next = { ...current }
+      delete next[field]
+      return next
+    })
+  }
+
+  function focusFirstError(errors: ReturnErrors) {
+    if (errors.motivo) motivoRef.current?.focus()
+    else if (errors.forma) formaRef.current?.focus()
+    else if (errors.condicionesConfirmadas) condicionesRef.current?.focus()
   }
 
   function handleSelectOrder(orderId: number) {
@@ -125,15 +165,20 @@ export function ReturnsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (isSubmitting || !selectedOrder || eligibility?.eligible !== true) return
+    if (submittingRef.current || !selectedOrder || eligibility?.eligible !== true) return
 
-    const errors: string[] = []
-    if (!motivo) errors.push(MSG_REASON_REQUIRED)
-    if (!forma) errors.push(MSG_METHOD_REQUIRED)
-    if (!confirmaCondiciones) errors.push(MSG_CONDITIONS_REQUIRED)
+    const errors = validateReturnForm({
+      motivo,
+      forma,
+      condicionesConfirmadas: confirmaCondiciones,
+    })
     setFormErrors(errors)
-    if (errors.length > 0 || !motivo || !forma) return
+    if (hasReturnErrors(errors) || !motivo || !forma) {
+      focusFirstError(errors)
+      return
+    }
 
+    submittingRef.current = true
     setIsSubmitting(true)
     setSubmitError(null)
     try {
@@ -149,8 +194,15 @@ export function ReturnsPage() {
       resetForm()
     } catch (error: unknown) {
       console.error(error)
-      setSubmitError(error instanceof Error ? error.message : MSG_SAVE_ERROR)
+      const message = returnSubmitMessage(error)
+      setSubmitError(message)
+      // A2 desde la base: hay una solicitud que la pantalla no tenía; se recarga
+      // la lista para que el pedido quede marcado.
+      if (message === RETURN_MESSAGES.alreadyRequested) {
+        setReturnsAttempt((value) => value + 1)
+      }
     } finally {
+      submittingRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -285,10 +337,16 @@ export function ReturnsPage() {
                         <label htmlFor="devolucion-motivo">Motivo de la devolución</label>
                         <select
                           id="devolucion-motivo"
+                          ref={motivoRef}
                           value={motivo}
-                          onChange={(event) =>
-                            setMotivo(event.target.value as ReturnReason | '')
+                          aria-invalid={Boolean(formErrors.motivo)}
+                          aria-describedby={
+                            formErrors.motivo ? FIELD_ERROR_ID.motivo : undefined
                           }
+                          onChange={(event) => {
+                            setMotivo(event.target.value as ReturnReason | '')
+                            clearFieldError('motivo')
+                          }}
                         >
                           <option value="">Selecciona un motivo</option>
                           {RETURN_REASONS.map((reason) => (
@@ -297,21 +355,33 @@ export function ReturnsPage() {
                             </option>
                           ))}
                         </select>
+                        <FieldError id={FIELD_ERROR_ID.motivo} message={formErrors.motivo} />
 
-                        <fieldset className="returns__fieldset">
+                        <fieldset
+                          className="returns__fieldset"
+                          aria-describedby={
+                            formErrors.forma ? FIELD_ERROR_ID.forma : undefined
+                          }
+                        >
                           <legend>Forma de devolución</legend>
-                          {Object.values(FORMA_DEVOLUCION).map((value) => (
+                          {Object.values(FORMA_DEVOLUCION).map((value, index) => (
                             <label key={value} className="returns__radio">
                               <input
                                 type="radio"
                                 name="forma"
                                 value={value}
+                                ref={index === 0 ? formaRef : undefined}
                                 checked={forma === value}
-                                onChange={() => setForma(value)}
+                                aria-invalid={Boolean(formErrors.forma)}
+                                onChange={() => {
+                                  setForma(value)
+                                  clearFieldError('forma')
+                                }}
                               />
                               {FORMA_DEVOLUCION_LABEL[value]}
                             </label>
                           ))}
+                          <FieldError id={FIELD_ERROR_ID.forma} message={formErrors.forma} />
                         </fieldset>
 
                         <label htmlFor="devolucion-comentarios">Comentarios (opcional)</label>
@@ -326,21 +396,27 @@ export function ReturnsPage() {
                         <label className="returns__radio">
                           <input
                             type="checkbox"
+                            ref={condicionesRef}
                             checked={confirmaCondiciones}
-                            onChange={(event) => setConfirmaCondiciones(event.target.checked)}
+                            aria-invalid={Boolean(formErrors.condicionesConfirmadas)}
+                            aria-describedby={
+                              formErrors.condicionesConfirmadas
+                                ? FIELD_ERROR_ID.condicionesConfirmadas
+                                : undefined
+                            }
+                            onChange={(event) => {
+                              setConfirmaCondiciones(event.target.checked)
+                              clearFieldError('condicionesConfirmadas')
+                            }}
                           />
                           <span>
                             {RETURN_CONDITIONS_TEXT} Confirmo que cumplen esta condición.
                           </span>
                         </label>
-
-                        {formErrors.length > 0 ? (
-                          <ul className="notice notice--error returns__errors" role="alert">
-                            {formErrors.map((message) => (
-                              <li key={message}>{message}</li>
-                            ))}
-                          </ul>
-                        ) : null}
+                        <FieldError
+                          id={FIELD_ERROR_ID.condicionesConfirmadas}
+                          message={formErrors.condicionesConfirmadas}
+                        />
 
                         {submitError ? (
                           <p className="notice notice--error" role="alert">

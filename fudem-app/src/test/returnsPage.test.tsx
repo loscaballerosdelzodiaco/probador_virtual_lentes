@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isProtectedRoute, readAppRoute } from '../lib/appRoute'
+import { RETURN_MESSAGES } from '../lib/returns/messages'
 import { ReturnsPage } from '../pages/ReturnsPage'
 import {
   createDevolucion,
@@ -16,6 +17,13 @@ vi.mock('../services/returnService', () => ({
   getMisDevoluciones: vi.fn(),
   createDevolucion: vi.fn(),
 }))
+
+async function fillValidForm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('radio', { name: /PED-000001/ }))
+  await user.selectOptions(screen.getByLabelText('Motivo de la devolución'), 'Llegó dañado')
+  await user.click(screen.getByRole('radio', { name: 'Reembolso' }))
+  await user.click(screen.getByRole('checkbox'))
+}
 
 function daysAgo(days: number) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
@@ -159,15 +167,67 @@ describe('ReturnsPage', () => {
     await user.click(await screen.findByRole('radio', { name: /PED-000001/ }))
     await user.click(screen.getByRole('button', { name: 'Solicitar devolución' }))
 
-    const alert = screen.getByRole('alert')
-    expect(within(alert).getByText('Selecciona el motivo de la devolución.')).toBeInTheDocument()
-    expect(within(alert).getByText('Selecciona la forma de devolución.')).toBeInTheDocument()
+    const motivo = screen.getByLabelText('Motivo de la devolución')
+    expect(motivo).toHaveAttribute('aria-invalid', 'true')
+    expect(motivo).toHaveAccessibleDescription(
+      'Motivo de la devolución: selecciona el motivo de la devolución.',
+    )
+    expect(motivo).toHaveFocus()
     expect(
-      within(alert).getByText(
-        'Debes confirmar que los lentes están sin uso y en su empaque original.',
-      ),
-    ).toBeInTheDocument()
+      screen.getByRole('group', { name: 'Forma de devolución' }),
+    ).toHaveAccessibleDescription('Forma de devolución: selecciona reembolso o cambio.')
+    expect(screen.getByRole('checkbox')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('checkbox')).toHaveAccessibleDescription(
+      RETURN_MESSAGES.conditionsRequired,
+    )
+    expect(screen.getAllByRole('alert')).toHaveLength(3)
     expect(createDevolucion).not.toHaveBeenCalled()
+  })
+
+  it('sin forma de devolución: muestra el error junto al campo, lo enfoca y no envía', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+
+    render(<ReturnsPage />)
+    await user.click(await screen.findByRole('radio', { name: /PED-000001/ }))
+    await user.selectOptions(screen.getByLabelText('Motivo de la devolución'), 'Otro')
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Solicitar devolución' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Forma de devolución: selecciona reembolso o cambio.',
+    )
+    expect(screen.getByRole('radio', { name: 'Reembolso' })).toHaveFocus()
+    expect(screen.getByRole('radio', { name: 'Reembolso' })).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    )
+    expect(screen.getByLabelText('Motivo de la devolución')).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    )
+    expect(createDevolucion).not.toHaveBeenCalled()
+  })
+
+  it('RN3: sin confirmar las condiciones muestra el error, enfoca la casilla y no envía', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+
+    render(<ReturnsPage />)
+    await user.click(await screen.findByRole('radio', { name: /PED-000001/ }))
+    await user.selectOptions(screen.getByLabelText('Motivo de la devolución'), 'Otro')
+    await user.click(screen.getByRole('radio', { name: 'Reembolso' }))
+    await user.click(screen.getByRole('button', { name: 'Solicitar devolución' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(RETURN_MESSAGES.conditionsRequired)
+    expect(screen.getByRole('checkbox')).toHaveFocus()
+    expect(createDevolucion).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('checkbox'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox')).toHaveAttribute('aria-invalid', 'false')
   })
 
   it('CA4 / CA5: registra la solicitud, muestra "En revisión" y la lista', async () => {
@@ -204,6 +264,14 @@ describe('ReturnsPage', () => {
     expect(await screen.findByText('Solicitud registrada.')).toBeInTheDocument()
     expect(screen.getAllByText('En revisión').length).toBeGreaterThan(0)
 
+    // A2 sin recargar: el pedido queda marcado con devolución activa.
+    expect(
+      within(screen.getByRole('radio', { name: /PED-000001/ }).closest('label')!).getByText(
+        'Este pedido ya tiene una devolución solicitada',
+      ),
+    ).toBeInTheDocument()
+    expect(getMisDevoluciones).toHaveBeenCalledTimes(1)
+
     await user.click(screen.getByRole('tab', { name: /Mis solicitudes \(1\)/ }))
     expect(screen.getByText('Motivo: No me queda bien')).toBeInTheDocument()
     expect(screen.getByText('Forma: Cambio por otro lente')).toBeInTheDocument()
@@ -228,6 +296,80 @@ describe('ReturnsPage', () => {
       'No se pudo registrar la devolución, intenta de nuevo más tarde',
     )
     expect(screen.queryByText('Solicitud registrada.')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['A1', RETURN_MESSAGES.outOfWindow],
+    ['RN1', RETURN_MESSAGES.notDelivered],
+  ])('%s desde la base: muestra el mensaje amigable', async (_caso, mensaje) => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+    vi.mocked(createDevolucion).mockRejectedValue(new Error(mensaje))
+
+    render(<ReturnsPage />)
+    await fillValidForm(user)
+    await user.click(screen.getByRole('button', { name: 'Solicitar devolución' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(mensaje)
+  })
+
+  it('A2 desde la base: muestra el mensaje y recarga las solicitudes para marcar el pedido', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...devolucionExistente, pedidoId: 1, numeroPedido: 'PED-000001' }])
+    vi.mocked(createDevolucion).mockRejectedValue(new Error(RETURN_MESSAGES.alreadyRequested))
+
+    render(<ReturnsPage />)
+    await fillValidForm(user)
+    await user.click(screen.getByRole('button', { name: 'Solicitar devolución' }))
+
+    await waitFor(() => expect(getMisDevoluciones).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Este pedido ya tiene una devolución solicitada',
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Solicitar devolución' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('E1: nunca muestra el texto técnico de un error inesperado', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+    vi.mocked(createDevolucion).mockRejectedValue(new TypeError('Failed to fetch'))
+
+    render(<ReturnsPage />)
+    await fillValidForm(user)
+    await user.click(screen.getByRole('button', { name: 'Solicitar devolución' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(RETURN_MESSAGES.saveError)
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument()
+  })
+
+  it('doble clic registra una sola vez y deshabilita el botón mientras envía', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+    let terminar: (value: Devolucion) => void = () => {}
+    vi.mocked(createDevolucion).mockReturnValue(
+      new Promise<Devolucion>((resolve) => {
+        terminar = resolve
+      }),
+    )
+
+    render(<ReturnsPage />)
+    await fillValidForm(user)
+    await user.dblClick(screen.getByRole('button', { name: 'Solicitar devolución' }))
+
+    expect(createDevolucion).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Enviando…' })).toBeDisabled()
+
+    terminar({ ...devolucionExistente, id: 12, pedidoId: 1, numeroPedido: 'PED-000001' })
+    expect(await screen.findByText('Solicitud registrada.')).toBeInTheDocument()
+    expect(createDevolucion).toHaveBeenCalledTimes(1)
   })
 
   it('muestra un error amigable si falla la carga de pedidos', async () => {

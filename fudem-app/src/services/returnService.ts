@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase'
 import { ESTADO_PEDIDO, type EstadoPedido } from '../lib/payment/orderStatus'
+import { UNIQUE_VIOLATION_CODE } from '../lib/payment/paymentErrors'
+import { RETURN_MESSAGES } from '../lib/returns/messages'
 import {
   DELIVERED_ORDERS_LOAD_ERROR_MESSAGE,
   MSG_ALREADY_REQUESTED,
@@ -13,7 +15,6 @@ import {
 
 const PEDIDO_TABLE = 'pedido'
 const DEVOLUCION_TABLE = 'devolucion'
-const UNIQUE_VIOLATION_CODE = '23505'
 
 export type PedidoEntregado = {
   id: number
@@ -170,25 +171,37 @@ function mensajeDeError(error: SupabaseErrorLike): string {
   if (error.code === UNIQUE_VIOLATION_CODE) return MSG_ALREADY_REQUESTED
   // RN2: el trigger de la base de datos rechazó el plazo.
   if (error.message?.includes('plazo_vencido')) return MSG_OUT_OF_WINDOW
+  // RN1: el trigger de la base de datos rechazó un pedido no entregado.
+  if (error.message?.includes('pedido_no_entregado')) return RETURN_MESSAGES.notDelivered
   return MSG_SAVE_ERROR
 }
 
 /**
  * CA4 / CA6: registra la solicitud. En caso de error lanza un Error con el
- * mensaje listo para mostrar al cliente.
+ * mensaje listo para mostrar al cliente. estado y usuario_id los pone la base.
  */
 export async function createDevolucion(input: NuevaDevolucion): Promise<Devolucion> {
-  const { data, error } = await supabase
-    .from(DEVOLUCION_TABLE)
-    .insert({
-      pedido_id: input.pedidoId,
-      motivo: input.motivo,
-      forma: input.forma,
-      comentarios: input.comentarios.trim() || null,
-      condiciones_confirmadas: true,
-    })
-    .select(DEVOLUCION_SELECT)
-    .single<DevolucionRow>()
+  let data: DevolucionRow | null
+  let error: SupabaseErrorLike | null
+
+  try {
+    const result = await supabase
+      .from(DEVOLUCION_TABLE)
+      .insert({
+        pedido_id: input.pedidoId,
+        motivo: input.motivo,
+        forma: input.forma,
+        comentarios: input.comentarios.trim() || null,
+        condiciones_confirmadas: true,
+      })
+      .select(DEVOLUCION_SELECT)
+      .single<DevolucionRow>()
+    data = result.data
+    error = result.error
+  } catch (cause) {
+    // E1: sin conexión u otro fallo que el cliente de Supabase lanza en vez de devolver.
+    throw new Error(MSG_SAVE_ERROR, { cause })
+  }
 
   if (error || !data) {
     throw new Error(error ? mensajeDeError(error) : MSG_SAVE_ERROR, { cause: error })
