@@ -27,6 +27,23 @@
   box-shadow: var(--shadow-card);
   cursor: pointer;
   transition: var(--transition);
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+}
+
+/* En celular la etiqueta pasa abajo para no apretar el número y el nombre. */
+.returns__order > .returns__badge {
+  flex-basis: 100%;
+}
+
+@media (min-width: 900px) {
+  .returns__order {
+    flex-wrap: nowrap;
+  }
+
+  .returns__order > .returns__badge {
+    flex-basis: auto;
+  }
 }
 
 .returns__order:hover {

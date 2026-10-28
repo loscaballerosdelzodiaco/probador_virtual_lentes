@@ -25,6 +25,7 @@ const pedidoVigente: PedidoEntregado = {
   id: 1,
   numero: 'PED-000001',
   monto: 75,
+  estado: 'entregado',
   fechaEntrega: daysAgo(2),
   productoNombre: 'Wayfarer Negro',
 }
@@ -33,6 +34,7 @@ const pedidoVencido: PedidoEntregado = {
   id: 2,
   numero: 'PED-000002',
   monto: 90,
+  estado: 'entregado',
   fechaEntrega: daysAgo(20),
   productoNombre: 'Aviador Classic',
 }
@@ -41,6 +43,7 @@ const pedidoConDevolucion: PedidoEntregado = {
   id: 3,
   numero: 'PED-000003',
   monto: 60,
+  estado: 'entregado',
   fechaEntrega: daysAgo(1),
   productoNombre: 'Redondo Negro',
 }
@@ -112,6 +115,36 @@ describe('ReturnsPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Este pedido ya tiene una devolución solicitada',
     )
+    expect(
+      screen.queryByRole('button', { name: 'Solicitar devolución' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('CA2: un pedido que cumple muestra el formulario con el botón habilitado', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+
+    render(<ReturnsPage />)
+    await user.click(await screen.findByRole('radio', { name: /PED-000001/ }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Motivo de la devolución')).toBeEnabled()
+    expect(screen.getByRole('group', { name: 'Forma de devolución' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Solicitar devolución' })).toBeEnabled()
+  })
+
+  it('RN1: un pedido no entregado muestra el motivo y no deja solicitar', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados).mockResolvedValue([
+      { ...pedidoVigente, estado: 'pagado', fechaEntrega: null },
+    ])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+
+    render(<ReturnsPage />)
+    await user.click(await screen.findByRole('radio', { name: /PED-000001/ }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Este pedido aún no ha sido entregado')
     expect(
       screen.queryByRole('button', { name: 'Solicitar devolución' }),
     ).not.toBeInTheDocument()

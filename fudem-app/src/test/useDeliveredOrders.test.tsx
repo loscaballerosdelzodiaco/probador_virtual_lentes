@@ -11,6 +11,7 @@ const pedido: PedidoEntregado = {
   id: 1,
   numero: 'PED-000001',
   monto: 75,
+  estado: 'entregado',
   fechaEntrega: '2026-10-25T10:00:00Z',
   productoNombre: 'Wayfarer Negro',
 }

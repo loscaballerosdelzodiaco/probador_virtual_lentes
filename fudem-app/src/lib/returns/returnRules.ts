@@ -1,6 +1,9 @@
 // Reglas de negocio de devoluciones (HU7).
 // Lo configurable vive aquí para cambiarlo en un solo lugar.
 
+import { ESTADO_PEDIDO, type EstadoPedido } from '../payment/orderStatus'
+import { RETURN_MESSAGES } from './messages'
+
 /** RN2: días posteriores a la entrega para solicitar la devolución. */
 export const RETURN_WINDOW_DAYS = 8
 
@@ -51,8 +54,8 @@ export const ESTADO_DEVOLUCION_LABEL: Record<EstadoDevolucion, string> = {
 }
 
 // Mensajes de la historia de usuario.
-export const MSG_OUT_OF_WINDOW = 'Este pedido ya no cumple el plazo de devolución' // A1
-export const MSG_ALREADY_REQUESTED = 'Este pedido ya tiene una devolución solicitada' // A2
+export const MSG_OUT_OF_WINDOW = RETURN_MESSAGES.outOfWindow // A1
+export const MSG_ALREADY_REQUESTED = RETURN_MESSAGES.alreadyRequested // A2
 export const MSG_NO_ORDERS = 'No tienes pedidos disponibles para devolución' // A3
 export const MSG_SAVE_ERROR =
   'No se pudo registrar la devolución, intenta de nuevo más tarde' // E1 / CA6
@@ -68,7 +71,7 @@ export const MSG_METHOD_REQUIRED = 'Selecciona la forma de devolución.'
 export const MSG_CONDITIONS_REQUIRED =
   'Debes confirmar que los lentes están sin uso y en su empaque original.' // RN3
 
-type OrderForRules = { id: number; fechaEntrega: string | null }
+type OrderForRules = { id: number; estado: EstadoPedido; fechaEntrega: string | null }
 type ReturnForRules = { pedidoId: number; estado: EstadoDevolucion }
 
 export type Eligibility =
@@ -82,17 +85,26 @@ export function hasActiveReturn(orderId: number, returns: ReturnForRules[]): boo
   )
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * RN2: fecha_entrega + 8 × 24 horas, igual que `interval '8 days'` del trigger
+ * devolucion_valida_solicitud (UTC). No depende de la zona horaria del navegador.
+ */
 export function returnDeadline(deliveredAt: string): Date {
-  const deadline = new Date(deliveredAt)
-  deadline.setDate(deadline.getDate() + RETURN_WINDOW_DAYS)
-  return deadline
+  return new Date(new Date(deliveredAt).getTime() + RETURN_WINDOW_DAYS * DAY_MS)
 }
 
+/** Orden: RN1 → A2 (RN4) → A1 (RN2). Se permite hasta el límite exacto. */
 export function evaluateEligibility(
   order: OrderForRules,
   returns: ReturnForRules[],
   now: Date = new Date(),
 ): Eligibility {
+  if (order.estado !== ESTADO_PEDIDO.entregado) {
+    return { eligible: false, message: RETURN_MESSAGES.notDelivered }
+  }
+
   if (hasActiveReturn(order.id, returns)) {
     return { eligible: false, message: MSG_ALREADY_REQUESTED }
   }
