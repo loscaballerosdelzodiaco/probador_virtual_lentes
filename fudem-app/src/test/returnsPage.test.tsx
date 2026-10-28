@@ -197,9 +197,22 @@ describe('ReturnsPage', () => {
     expect(screen.queryByText('Solicitud registrada.')).not.toBeInTheDocument()
   })
 
-  it('muestra un error amigable si falla la carga', async () => {
+  it('muestra un error amigable si falla la carga de pedidos', async () => {
     vi.mocked(getPedidosEntregados).mockRejectedValue(new Error('JWT expired'))
     vi.mocked(getMisDevoluciones).mockResolvedValue([])
+
+    render(<ReturnsPage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No pudimos cargar tus pedidos entregados.',
+    )
+    expect(screen.queryByText(/JWT expired/)).not.toBeInTheDocument()
+    expect(screen.queryByText('No tienes pedidos disponibles para devolución')).not.toBeInTheDocument()
+  })
+
+  it('muestra un error amigable si falla la carga de solicitudes', async () => {
+    vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockRejectedValue(new Error('JWT expired'))
 
     render(<ReturnsPage />)
 
@@ -207,6 +220,22 @@ describe('ReturnsPage', () => {
       'No pudimos cargar tus devoluciones.',
     )
     expect(screen.queryByText(/JWT expired/)).not.toBeInTheDocument()
+  })
+
+  it('T3: "Reintentar" vuelve a cargar los pedidos entregados', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPedidosEntregados)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValueOnce([pedidoVigente])
+    vi.mocked(getMisDevoluciones).mockResolvedValue([])
+
+    render(<ReturnsPage />)
+    await user.click(await screen.findByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByText(/PED-000001 · Wayfarer Negro/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(getPedidosEntregados).toHaveBeenCalledTimes(2)
+    expect(getMisDevoluciones).toHaveBeenCalledTimes(1)
   })
 })
 

@@ -57,6 +57,9 @@ export const MSG_NO_ORDERS = 'No tienes pedidos disponibles para devolución' //
 export const MSG_SAVE_ERROR =
   'No se pudo registrar la devolución, intenta de nuevo más tarde' // E1 / CA6
 
+export const DELIVERED_ORDERS_LOAD_ERROR_MESSAGE =
+  'No pudimos cargar tus pedidos entregados. Inténtalo de nuevo en unos momentos.'
+
 export const RETURNS_LOAD_ERROR_MESSAGE =
   'No pudimos cargar tus devoluciones. Inténtalo de nuevo en unos momentos.'
 

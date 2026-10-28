@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import './ReturnsPage.css'
+import { useDeliveredOrders } from '../hooks/useDeliveredOrders'
 import {
   ESTADO_DEVOLUCION_LABEL,
   FORMA_DEVOLUCION,
@@ -20,9 +21,7 @@ import {
 import {
   createDevolucion,
   getMisDevoluciones,
-  getPedidosEntregados,
   type Devolucion,
-  type PedidoEntregado,
 } from '../services/returnService'
 
 type Tab = 'solicitar' | 'estado'
@@ -41,10 +40,23 @@ function formatMoney(value: number) {
 }
 
 export function ReturnsPage() {
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const [orders, setOrders] = useState<PedidoEntregado[]>([])
+  // T3: pedidos entregados del cliente.
+  const {
+    orders,
+    loading: ordersLoading,
+    error: ordersError,
+    reload: reloadOrders,
+  } = useDeliveredOrders()
+
+  // Solicitudes del cliente (se usan para validar A2 y se listan en T6).
   const [returns, setReturns] = useState<Devolucion[]>([])
+  const [returnsLoading, setReturnsLoading] = useState(true)
+  const [returnsError, setReturnsError] = useState<string | null>(null)
+  const [returnsAttempt, setReturnsAttempt] = useState(0)
+
+  const isLoading = ordersLoading || returnsLoading
+  const loadError = ordersError ?? returnsError
+
   const [tab, setTab] = useState<Tab>('solicitar')
 
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
@@ -60,26 +72,33 @@ export function ReturnsPage() {
   useEffect(() => {
     let active = true
 
-    Promise.all([getPedidosEntregados(), getMisDevoluciones()])
-      .then(([orderRows, returnRows]) => {
+    getMisDevoluciones()
+      .then((rows) => {
         if (!active) return
-        setOrders(orderRows)
-        setReturns(returnRows)
-        setLoadError(null)
+        setReturns(rows)
+        setReturnsError(null)
       })
       .catch((error: unknown) => {
         if (!active) return
         console.error(error)
-        setLoadError(RETURNS_LOAD_ERROR_MESSAGE)
+        setReturnsError(RETURNS_LOAD_ERROR_MESSAGE)
       })
       .finally(() => {
-        if (active) setIsLoading(false)
+        if (active) setReturnsLoading(false)
       })
 
     return () => {
       active = false
     }
-  }, [])
+  }, [returnsAttempt])
+
+  function handleRetry() {
+    if (ordersError) reloadOrders()
+    if (returnsError) {
+      setReturnsLoading(true)
+      setReturnsAttempt((value) => value + 1)
+    }
+  }
 
   const eligibilityByOrder = useMemo(
     () => new Map(orders.map((order) => [order.id, evaluateEligibility(order, returns)])),
@@ -151,10 +170,13 @@ export function ReturnsPage() {
 
         {isLoading ? <p role="status">Cargando tus pedidos…</p> : null}
 
-        {loadError ? (
-          <p className="notice notice--error" role="alert">
-            {loadError}
-          </p>
+        {!isLoading && loadError ? (
+          <div className="notice notice--error returns__load-error" role="alert">
+            <p>{loadError}</p>
+            <button type="button" className="btn btn--outline" onClick={handleRetry}>
+              Reintentar
+            </button>
+          </div>
         ) : null}
 
         {!isLoading && !loadError ? (
