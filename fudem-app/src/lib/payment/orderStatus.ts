@@ -2,6 +2,8 @@
 export const ESTADO_PEDIDO = {
   pendiente: 'pendiente de pago',
   pagado: 'pagado',
+  /** HU7: lo marca el personal al entregar; habilita la devolución. */
+  entregado: 'entregado',
 } as const
 
 export type EstadoPedido = (typeof ESTADO_PEDIDO)[keyof typeof ESTADO_PEDIDO]
@@ -10,6 +12,7 @@ export type EstadoPedido = (typeof ESTADO_PEDIDO)[keyof typeof ESTADO_PEDIDO]
 export const ESTADO_PEDIDO_LABEL: Record<EstadoPedido, string> = {
   'pendiente de pago': 'Pendiente de pago',
   pagado: 'Pagado',
+  entregado: 'Entregado',
 }
 
 export type FormaPagoPedido = 'tarjeta' | 'tienda'
