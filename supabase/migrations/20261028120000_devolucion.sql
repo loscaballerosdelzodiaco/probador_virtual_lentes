@@ -5,15 +5,27 @@
 --    actualizar pedidos.
 -- 2. devolucion: solicitud de devolución del cliente.
 --
+-- Se puede correr aunque la tabla ya exista: los constraints se borran y se
+-- vuelven a crear, y el resto usa if not exists, create or replace o
+-- drop ... if exists.
+--
+-- devolucion.estado:
+--   en revision = estado inicial de toda solicitud (CA4)
+--   aprobada    = el personal aceptó la devolución
+--   rechazada   = el personal no la aceptó; el pedido queda libre (RN4)
+--   completada  = ya se hizo el reembolso o el cambio
+-- Flujo: en revision -> aprobada o rechazada; aprobada -> completada.
+-- Solo el personal cambia el estado; aprobar o rechazar no es parte de HU7.
+--
 -- Reglas de negocio:
 --   RN1 solo pedidos 'entregado'.
 --   RN2 solicitud dentro de 8 días posteriores a la entrega.
 --   RN3 el cliente confirma "sin uso y en empaque original".
 --   RN4 una sola devolución activa por pedido (una 'rechazada' libera el pedido).
---   RN5 el motivo es obligatorio.
+--   RN5 el motivo es obligatorio y sale de una lista.
 --
--- Si cambia el plazo, actualizar también RETURN_WINDOW_DAYS en
--- fudem-app/src/lib/returns/returnRules.ts.
+-- Si cambia el plazo o la lista de motivos, actualizar también
+-- RETURN_WINDOW_DAYS y RETURN_REASONS en fudem-app/src/lib/returns/returnRules.ts.
 
 -- ---------------------------------------------------------------- pedido
 
@@ -21,7 +33,7 @@ alter table public.pedido
   add column if not exists fecha_entrega timestamptz;
 
 comment on column public.pedido.fecha_entrega is
-  'Fecha en que el pedido se entregó al cliente. Obligatoria cuando estado = entregado.';
+  'Fecha en que el pedido se entregó al cliente. Obligatoria cuando estado = entregado y vacía en los demás estados.';
 
 alter table public.pedido drop constraint if exists pedido_estado_check;
 alter table public.pedido
@@ -32,6 +44,13 @@ alter table public.pedido drop constraint if exists pedido_entregado_fecha_check
 alter table public.pedido
   add constraint pedido_entregado_fecha_check
   check (estado <> 'entregado' or fecha_entrega is not null);
+
+-- El cliente no puede dejar una fecha_entrega propia al crear su pedido:
+-- solo un pedido entregado tiene fecha de entrega (RN2 depende de ella).
+alter table public.pedido drop constraint if exists pedido_fecha_entrega_solo_entregado_check;
+alter table public.pedido
+  add constraint pedido_fecha_entrega_solo_entregado_check
+  check (fecha_entrega is null or estado = 'entregado');
 
 comment on column public.pedido.estado is
   'pendiente de pago: sin pago aprobado. pagado: tiene un pago aprobado (RN3). entregado: ya recibido por el cliente.';
@@ -47,30 +66,78 @@ create table if not exists public.devolucion (
   comentarios text,
   condiciones_confirmadas boolean not null,
   estado text not null default 'en revision',
-  fecha_solicitud timestamptz not null default now(),
-  constraint devolucion_motivo_check
-    check (char_length(btrim(motivo)) between 1 and 80),
-  constraint devolucion_forma_check
-    check (forma in ('reembolso', 'cambio')),
-  constraint devolucion_comentarios_check
-    check (comentarios is null or char_length(comentarios) <= 500),
-  constraint devolucion_condiciones_check
-    check (condiciones_confirmadas is true),
-  constraint devolucion_estado_check
-    check (estado in ('en revision', 'aprobada', 'rechazada', 'completada'))
+  fecha_solicitud timestamptz not null default now()
 );
+
+-- RN5: los textos son los mismos de RETURN_REASONS.
+alter table public.devolucion drop constraint if exists devolucion_motivo_check;
+alter table public.devolucion
+  add constraint devolucion_motivo_check
+  check (
+    motivo in (
+      'Defecto de fábrica',
+      'No me queda bien',
+      'No me gusta el diseño',
+      'Producto distinto al pedido',
+      'Llegó dañado',
+      'Otro'
+    )
+  );
+
+alter table public.devolucion drop constraint if exists devolucion_forma_check;
+alter table public.devolucion
+  add constraint devolucion_forma_check
+  check (forma in ('reembolso', 'cambio'));
+
+alter table public.devolucion drop constraint if exists devolucion_comentarios_check;
+alter table public.devolucion
+  add constraint devolucion_comentarios_check
+  check (comentarios is null or char_length(comentarios) <= 500);
+
+-- Nombre anterior de la misma regla.
+alter table public.devolucion drop constraint if exists devolucion_condiciones_check;
+alter table public.devolucion drop constraint if exists devolucion_condiciones_confirmadas_check;
+alter table public.devolucion
+  add constraint devolucion_condiciones_confirmadas_check
+  check (condiciones_confirmadas is true);
+
+alter table public.devolucion drop constraint if exists devolucion_estado_check;
+alter table public.devolucion
+  add constraint devolucion_estado_check
+  check (estado in ('en revision', 'aprobada', 'rechazada', 'completada'));
 
 comment on table public.devolucion is
   'Solicitud de devolución de un pedido entregado (HU7).';
-comment on column public.devolucion.condiciones_confirmadas is
-  'RN3: el cliente confirmó que los lentes están sin uso y en su empaque original.';
+
+comment on column public.devolucion.pedido_id is
+  'Pedido que se devuelve. Tiene que ser del cliente y estar entregado (RN1).';
+
+comment on column public.devolucion.usuario_id is
+  'Cliente que solicita. Lo pone un trigger con la sesión; se ignora el valor que mande la app.';
+
+comment on column public.devolucion.motivo is
+  'RN5: motivo obligatorio, uno de la lista de la pantalla.';
+
 comment on column public.devolucion.forma is
   'reembolso o cambio.';
+
+comment on column public.devolucion.comentarios is
+  'Descripción opcional del motivo, máximo 500 caracteres.';
+
+comment on column public.devolucion.condiciones_confirmadas is
+  'RN3: el cliente confirmó que los lentes están sin uso y en su empaque original.';
+
 comment on column public.devolucion.estado is
   'en revision (inicial), aprobada, rechazada o completada. Solo el personal cambia el estado.';
 
+comment on column public.devolucion.fecha_solicitud is
+  'Momento en que el cliente envió la solicitud. Lo asigna la base de datos.';
+
 create index if not exists devolucion_usuario_id_fecha_idx
   on public.devolucion (usuario_id, fecha_solicitud desc);
+
+create index if not exists devolucion_pedido_id_idx
+  on public.devolucion (pedido_id);
 
 -- RN4: una sola devolución activa por pedido.
 create unique index if not exists devolucion_una_activa_por_pedido_idx
@@ -78,6 +145,8 @@ create unique index if not exists devolucion_una_activa_por_pedido_idx
   where estado <> 'rechazada';
 
 -- usuario_id lo pone la sesión; valida RN1 y RN2 en el servidor.
+-- Los textos de error (pedido_no_encontrado, pedido_no_entregado,
+-- plazo_vencido) los lee la app para mostrar el mensaje.
 create or replace function public.devolucion_valida_solicitud()
 returns trigger
 language plpgsql
