@@ -412,6 +412,101 @@ describe('ReturnsPage', () => {
     expect(getPedidosEntregados).toHaveBeenCalledTimes(2)
     expect(getMisDevoluciones).toHaveBeenCalledTimes(1)
   })
+
+  describe('T6: consulta del estado de las solicitudes', () => {
+    const aprobada: Devolucion = {
+      ...devolucionExistente,
+      id: 20,
+      pedidoId: 1,
+      numeroPedido: 'PED-000001',
+      productoNombre: 'Wayfarer Negro',
+      motivo: 'No me queda bien',
+      forma: 'cambio',
+      comentarios: 'Me aprieta en las sienes',
+      estado: 'aprobada',
+    }
+
+    it('CA5: lista las solicitudes con su estado y su explicación', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente, pedidoConDevolucion])
+      vi.mocked(getMisDevoluciones).mockResolvedValue([devolucionExistente, aprobada])
+
+      render(<ReturnsPage />)
+      await user.click(await screen.findByRole('tab', { name: /Mis solicitudes \(2\)/ }))
+
+      const list = screen.getByRole('list', { name: 'Solicitudes de devolución' })
+      const items = within(list).getAllByRole('listitem')
+      expect(items).toHaveLength(2)
+      expect(within(items[0]).getByText('En revisión')).toBeInTheDocument()
+      expect(within(items[0]).getByText('Estamos revisando tu solicitud.')).toBeInTheDocument()
+      expect(within(items[1]).getByText('Aprobada')).toBeInTheDocument()
+      expect(within(items[1]).getByText('Tu solicitud fue aprobada.')).toBeInTheDocument()
+      expect(within(items[1]).getByText('Comentarios: Me aprieta en las sienes')).toBeInTheDocument()
+    })
+
+    it('sin solicitudes: avisa y ofrece ir a solicitar una', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoVigente])
+      vi.mocked(getMisDevoluciones).mockResolvedValue([])
+
+      render(<ReturnsPage />)
+      await user.click(await screen.findByRole('tab', { name: /Mis solicitudes \(0\)/ }))
+
+      expect(screen.getByText('Aún no has solicitado devoluciones.')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Solicitar una devolución' }))
+      expect(await screen.findByRole('radio', { name: /PED-000001/ })).toBeInTheDocument()
+    })
+
+    it('"Actualizar estado" vuelve a consultar y muestra el nuevo estado sin ocultar la lista', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoConDevolucion])
+      vi.mocked(getMisDevoluciones)
+        .mockResolvedValueOnce([devolucionExistente])
+        .mockResolvedValueOnce([{ ...devolucionExistente, estado: 'rechazada' }])
+
+      render(<ReturnsPage />)
+      await user.click(await screen.findByRole('tab', { name: /Mis solicitudes \(1\)/ }))
+      expect(screen.getByText('En revisión')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Actualizar estado' }))
+
+      expect(await screen.findByText('Rechazada')).toBeInTheDocument()
+      expect(screen.getByText('Tu solicitud fue rechazada.')).toBeInTheDocument()
+      expect(screen.queryByText('En revisión')).not.toBeInTheDocument()
+      expect(getMisDevoluciones).toHaveBeenCalledTimes(2)
+    })
+
+    it('si falla la actualización conserva la lista y avisa', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoConDevolucion])
+      vi.mocked(getMisDevoluciones)
+        .mockResolvedValueOnce([devolucionExistente])
+        .mockRejectedValueOnce(new Error('network'))
+
+      render(<ReturnsPage />)
+      await user.click(await screen.findByRole('tab', { name: /Mis solicitudes \(1\)/ }))
+      await user.click(screen.getByRole('button', { name: 'Actualizar estado' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'No pudimos cargar tus devoluciones.',
+      )
+      expect(screen.getByText('En revisión')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Actualizar estado' })).toBeEnabled()
+    })
+
+    it('una solicitud rechazada libera el pedido para pedir otra', async () => {
+      const user = userEvent.setup()
+      vi.mocked(getPedidosEntregados).mockResolvedValue([pedidoConDevolucion])
+      vi.mocked(getMisDevoluciones).mockResolvedValue([
+        { ...devolucionExistente, estado: 'rechazada' },
+      ])
+
+      render(<ReturnsPage />)
+      await user.click(await screen.findByRole('radio', { name: /PED-000003/ }))
+
+      expect(screen.getByRole('button', { name: 'Solicitar devolución' })).toBeInTheDocument()
+    })
+  })
 })
 
 describe('ruta /devoluciones', () => {

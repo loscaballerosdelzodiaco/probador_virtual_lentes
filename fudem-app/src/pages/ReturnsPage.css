@@ -133,6 +133,22 @@
   white-space: nowrap;
 }
 
+.returns__badge--pending {
+  background: var(--color-secondary);
+}
+
+.returns__badge--success {
+  background: var(--color-success);
+}
+
+.returns__badge--error {
+  background: var(--color-error);
+}
+
+.returns__badge--done {
+  background: var(--color-accent);
+}
+
 .returns__badge--muted {
   background: var(--color-bg-btn-neutral);
   color: var(--color-text-btn-neutral);
@@ -178,4 +194,21 @@
 .returns .btn[disabled] {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.returns__status-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.returns__status-head h2 {
+  margin: 0;
+}
+
+.returns__status-text {
+  color: var(--color-text-strong);
+  font-weight: var(--weight-semibold);
 }

@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import './ReturnsPage.css'
+import { ReturnStatusList } from '../components/ReturnStatusList'
 import { useDeliveredOrders } from '../hooks/useDeliveredOrders'
+import { useMyReturns } from '../hooks/useMyReturns'
 import { RETURN_MESSAGES } from '../lib/returns/messages'
 import {
   ESTADO_DEVOLUCION_LABEL,
   FORMA_DEVOLUCION,
   FORMA_DEVOLUCION_LABEL,
   MSG_NO_ORDERS,
-  RETURNS_LOAD_ERROR_MESSAGE,
   RETURN_CONDITIONS_TEXT,
   RETURN_REASONS,
   RETURN_WINDOW_DAYS,
@@ -22,11 +23,7 @@ import {
   type ReturnErrors,
   type ReturnField,
 } from '../lib/returns/validateReturn'
-import {
-  createDevolucion,
-  getMisDevoluciones,
-  type Devolucion,
-} from '../services/returnService'
+import { createDevolucion, type Devolucion } from '../services/returnService'
 
 type Tab = 'solicitar' | 'estado'
 
@@ -67,11 +64,16 @@ export function ReturnsPage() {
     reload: reloadOrders,
   } = useDeliveredOrders()
 
-  // Solicitudes del cliente (se usan para validar A2 y se listan en T6).
-  const [returns, setReturns] = useState<Devolucion[]>([])
-  const [returnsLoading, setReturnsLoading] = useState(true)
-  const [returnsError, setReturnsError] = useState<string | null>(null)
-  const [returnsAttempt, setReturnsAttempt] = useState(0)
+  // T6: solicitudes del cliente y su estado (también sirven para validar A2).
+  const {
+    returns,
+    loading: returnsLoading,
+    refreshing: returnsRefreshing,
+    error: returnsError,
+    refreshError: returnsRefreshError,
+    reload: reloadReturns,
+    addReturn,
+  } = useMyReturns()
 
   const isLoading = ordersLoading || returnsLoading
   const loadError = ordersError ?? returnsError
@@ -94,35 +96,9 @@ export function ReturnsPage() {
   const formaRef = useRef<HTMLInputElement>(null)
   const condicionesRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    let active = true
-
-    getMisDevoluciones()
-      .then((rows) => {
-        if (!active) return
-        setReturns(rows)
-        setReturnsError(null)
-      })
-      .catch((error: unknown) => {
-        if (!active) return
-        console.error(error)
-        setReturnsError(RETURNS_LOAD_ERROR_MESSAGE)
-      })
-      .finally(() => {
-        if (active) setReturnsLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [returnsAttempt])
-
   function handleRetry() {
     if (ordersError) reloadOrders()
-    if (returnsError) {
-      setReturnsLoading(true)
-      setReturnsAttempt((value) => value + 1)
-    }
+    if (returnsError) reloadReturns()
   }
 
   const eligibilityByOrder = useMemo(
@@ -188,7 +164,7 @@ export function ReturnsPage() {
         forma,
         comentarios,
       })
-      setReturns((current) => [created, ...current])
+      addReturn(created)
       setLastCreated(created)
       setSelectedOrderId(null)
       resetForm()
@@ -199,7 +175,7 @@ export function ReturnsPage() {
       // A2 desde la base: hay una solicitud que la pantalla no tenía; se recarga
       // la lista para que el pedido quede marcado.
       if (message === RETURN_MESSAGES.alreadyRequested) {
-        setReturnsAttempt((value) => value + 1)
+        reloadReturns()
       }
     } finally {
       submittingRef.current = false
@@ -433,33 +409,13 @@ export function ReturnsPage() {
                 )}
               </>
             ) : (
-              <>
-                <h2>Mis solicitudes de devolución</h2>
-                {returns.length === 0 ? (
-                  <p className="notice" role="status">
-                    Aún no has solicitado devoluciones.
-                  </p>
-                ) : (
-                  <ul className="returns__list">
-                    {returns.map((item) => (
-                      <li key={item.id} className="returns__item">
-                        <div className="returns__item-head">
-                          <strong>
-                            {item.numeroPedido} · {item.productoNombre}
-                          </strong>
-                          <span className="returns__badge">
-                            {ESTADO_DEVOLUCION_LABEL[item.estado]}
-                          </span>
-                        </div>
-                        <p>Solicitada el {formatDate(item.fechaSolicitud)}</p>
-                        <p>Motivo: {item.motivo}</p>
-                        <p>Forma: {FORMA_DEVOLUCION_LABEL[item.forma]}</p>
-                        {item.comentarios ? <p>Comentarios: {item.comentarios}</p> : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
+              <ReturnStatusList
+                returns={returns}
+                refreshing={returnsRefreshing}
+                refreshError={returnsRefreshError}
+                onRefresh={reloadReturns}
+                onNewRequest={() => setTab('solicitar')}
+              />
             )}
           </>
         ) : null}
