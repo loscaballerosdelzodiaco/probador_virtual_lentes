@@ -25,11 +25,14 @@ import { detectFace } from '../lib/tryOn/faceDetector'
 import { PHOTO_POSITION_UNIT } from '../lib/tryOn/adjust'
 import { isFaceFrontal } from '../lib/tryOn/facePose'
 import {
+  anchorFromImage,
+  drawCameraLensOnCanvas,
+  drawPhotoLensOnCanvas,
+} from '../lib/tryOn/glassesOverlay'
+import {
   validateFaceInImage,
   validateImageFile,
 } from '../lib/tryOn/imageValidation'
-import { getLensAnchor } from '../lib/tryOn/lensAnchor'
-import { computeLensTransform, drawLens } from '../lib/tryOn/lensTransform'
 import { TRYON_MESSAGES, TRYON_STATUS_TEXT } from '../lib/tryOn/messages'
 import { getTryOnStatus, type TryOnErrorKey } from '../lib/tryOn/status'
 import type { FaceData, LensAnchor, TryOnModel } from '../lib/tryOn/types'
@@ -67,12 +70,6 @@ export type TryOnPageProps = {
 const DEFAULT_ADJUST: ManualAdjustValues = { dx: 0, dy: 0, scale: 1, rotation: 0 }
 const noop = () => {}
 
-function anchorFromImage(image: HTMLImageElement): LensAnchor | null {
-  const anchor = getLensAnchor(image)
-  if (!(anchor.width > 0 && anchor.height > 0)) return null
-  return anchor
-}
-
 function resolveSelectedId(
   selectedModelId: number | null | undefined,
   internalSelectedId: number | null,
@@ -87,55 +84,6 @@ function resolveSelectedId(
     return preferred
   }
   return models[0]?.id ?? null
-}
-
-function drawPhotoLensOnCanvas(
-  canvas: HTMLCanvasElement,
-  photo: HTMLImageElement,
-  face: FaceData,
-  lensImage: HTMLImageElement,
-  lensAnchor: LensAnchor,
-  adjust: ManualAdjustValues,
-) {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  const width = photo.naturalWidth || photo.width
-  const height = photo.naturalHeight || photo.height
-  if (width <= 0 || height <= 0) return
-  canvas.width = width
-  canvas.height = height
-  const nudge = Math.max(width, height) * PHOTO_POSITION_UNIT
-  ctx.clearRect(0, 0, width, height)
-  ctx.drawImage(photo, 0, 0, width, height)
-  drawLens(
-    ctx,
-    lensImage,
-    lensAnchor,
-    computeLensTransform(face, lensAnchor, {
-      ...adjust,
-      dx: adjust.dx * nudge,
-      dy: adjust.dy * nudge,
-    }),
-  )
-}
-
-function drawCameraLensOnCanvas(
-  canvas: HTMLCanvasElement,
-  video: HTMLVideoElement,
-  face: FaceData,
-  lensImage: HTMLImageElement,
-  lensAnchor: LensAnchor,
-) {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  const width = video.videoWidth
-  const height = video.videoHeight
-  if (width <= 0 || height <= 0) return
-  if (canvas.width !== width) canvas.width = width
-  if (canvas.height !== height) canvas.height = height
-  ctx.clearRect(0, 0, width, height)
-  if (!isFaceFrontal(face)) return
-  drawLens(ctx, lensImage, lensAnchor, computeLensTransform(face, lensAnchor))
 }
 
 export function TryOnPage({
