@@ -39,7 +39,7 @@ export type TryOnMode = 'camera' | 'photo'
 export type { TryOnErrorKey }
 
 export type TryOnPageProps = {
-  /** Si no se pasa, se lee de la ruta /probador#<idProducto> */
+  /** Lo calcula appRoute (readAppRoute) desde /probador#<idProducto> y lo pasa App */
   productId?: number | null
   /** T6: modelos y selección */
   models?: TryOnModel[]
@@ -138,14 +138,8 @@ function drawCameraLensOnCanvas(
   drawLens(ctx, lensImage, lensAnchor, computeLensTransform(face, lensAnchor))
 }
 
-function readProductIdFromHash(): number | null {
-  const raw = window.location.hash.replace(/^#/, '').trim()
-  const id = Number(raw)
-  return Number.isInteger(id) && id > 0 ? id : null
-}
-
 export function TryOnPage({
-  productId,
+  productId = null,
   models = [],
   selectedModelId,
   onSelectModel = noop,
@@ -161,7 +155,6 @@ export function TryOnPage({
   errorKey = null,
   onDismissError = noop,
 }: TryOnPageProps) {
-  const [hashId, setHashId] = useState<number | null>(readProductIdFromHash)
   const [mode, setMode] = useState<TryOnMode>('camera')
   const [cameraError, setCameraError] = useState<TryOnErrorKey | null>(null)
   const [cameraAttempt, setCameraAttempt] = useState(0)
@@ -190,11 +183,10 @@ export function TryOnPage({
 
   const adjustValues = internalAdjust
   const canAdjustLens = Boolean(userPhoto && photoFace)
-  const currentProductId = productId !== undefined ? productId : hashId
   const selectedId = resolveSelectedId(
     selectedModelId,
     internalSelectedId,
-    currentProductId,
+    productId,
     models,
   )
   const selectedModel = models.find((model) => model.id === selectedId) ?? null
@@ -212,12 +204,6 @@ export function TryOnPage({
     setInternalAdjust(next)
     onAdjustChange(next)
   }
-
-  useEffect(() => {
-    const onHashChange = () => setHashId(readProductIdFromHash())
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
 
   useEffect(() => {
     return () => {
@@ -708,7 +694,7 @@ export function TryOnPage({
               </button>
               <a
                 className="btn"
-                href={currentProductId ? `/pago#${currentProductId}` : '/catalogo'}
+                href={productId ? `/pago#${productId}` : '/catalogo'}
               >
                 Comprar
               </a>
