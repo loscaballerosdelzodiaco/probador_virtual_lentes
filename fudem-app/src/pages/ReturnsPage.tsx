@@ -3,6 +3,7 @@ import './ReturnsPage.css'
 import { ReturnStatusList } from '../components/ReturnStatusList'
 import { useDeliveredOrders } from '../hooks/useDeliveredOrders'
 import { useMyReturns } from '../hooks/useMyReturns'
+import { formatPrice } from '../lib/price'
 import { RETURN_MESSAGES } from '../lib/returns/messages'
 import {
   ESTADO_DEVOLUCION_LABEL,
@@ -34,10 +35,6 @@ function formatDate(iso: string | null) {
     month: 'long',
     year: 'numeric',
   })
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat('es-SV', { style: 'currency', currency: 'USD' }).format(value)
 }
 
 const FIELD_ERROR_ID: Record<ReturnField, string> = {
@@ -281,7 +278,7 @@ export function ReturnsPage() {
                                 </strong>
                                 <br />
                                 Entregado el {formatDate(order.fechaEntrega)} ·{' '}
-                                {formatMoney(order.monto)}
+                                {formatPrice(order.monto)}
                               </span>
                               {check && !check.eligible ? (
                                 <span className="returns__badge returns__badge--muted">

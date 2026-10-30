@@ -1,14 +1,8 @@
 import type { Product } from '../data/products'
+import { formatPrice } from '../lib/price'
 
 type ProductCardProps = {
   product: Product
-}
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat('es-SV', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value)
 }
 
 export function ProductCard({ product }: ProductCardProps) {

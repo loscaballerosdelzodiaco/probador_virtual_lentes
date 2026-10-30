@@ -1,15 +1,9 @@
 import { catalogImageSrc } from '../lib/catalogImage'
+import { formatPrice } from '../lib/price'
 import type { ProductoDisponible } from '../services/productService'
 
 type ProductDetailProps = {
   product: ProductoDisponible
-}
-
-function formatPrice(value: number) {
-  return new Intl.NumberFormat('es-SV', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value)
 }
 
 function visibleText(value: string | null): string | null {
