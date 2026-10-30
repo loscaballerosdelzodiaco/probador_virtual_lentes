@@ -1,7 +1,2 @@
-/** HU5 / T4: precio en dólares, igual que en el detalle del producto. */
-export function formatPrice(value: number): string {
-  return new Intl.NumberFormat('es-SV', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value)
-}
+/** HU5 / T4: el pago usa el mismo formato de precio que el resto de la app. */
+export { formatPrice } from '../price'

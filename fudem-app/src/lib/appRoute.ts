@@ -64,10 +64,6 @@ export function readAppRoute(
   return { name: 'registro' }
 }
 
-export function isCatalogRoute(route: AppRoute): boolean {
-  return route.name === 'catalogo'
-}
-
 export function isProtectedRoute(route: AppRoute): boolean {
   return (
     route.name === 'catalogo' ||

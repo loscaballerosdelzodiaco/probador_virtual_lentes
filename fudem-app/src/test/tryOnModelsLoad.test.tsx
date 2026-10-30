@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { getCurrentSession } from '../services/authService'
@@ -67,5 +67,54 @@ describe('probador: modelos desde tryOnService', () => {
     expect(screen.getByRole('option', { name: '1432, Boss' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Sin foto/ })).toBeNull()
     expect(screen.queryByRole('option', { name: /Vacío/ })).toBeNull()
+  })
+})
+
+describe('probador: lente desde la ruta (readAppRoute)', () => {
+  beforeEach(() => {
+    vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
+    vi.mocked(getAvailableProducts).mockResolvedValue([
+      product({ id: 1, nombre: 'AN7225', url_imagen: 'ARNETTEAN7225.webp' }),
+      product({ id: 4, nombre: '1432', url_imagen: 'BOSS14322M2.webp' }),
+    ])
+  })
+
+  it('con /probador#4 selecciona el lente del enlace', async () => {
+    window.history.replaceState(null, '', '/probador#4')
+    render(<App />)
+
+    expect(await screen.findByRole('option', { name: '1432, Boss' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('option', { name: 'AN7225, Arnette' })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    )
+    expect(screen.getByRole('link', { name: 'Comprar' })).toHaveAttribute('href', '/pago#4')
+  })
+
+  it('sin id en la ruta selecciona el primer modelo', async () => {
+    window.history.replaceState(null, '', '/probador')
+    render(<App />)
+
+    expect(await screen.findByRole('option', { name: 'AN7225, Arnette' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('link', { name: 'Comprar' })).toHaveAttribute('href', '/catalogo')
+  })
+
+  it('al cambiar el hash, el probador recibe el nuevo lente desde App', async () => {
+    window.history.replaceState(null, '', '/probador#1')
+    render(<App />)
+    expect(await screen.findByRole('link', { name: 'Comprar' })).toHaveAttribute('href', '/pago#1')
+
+    window.history.replaceState(null, '', '/probador#4')
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: 'Comprar' })).toHaveAttribute('href', '/pago#4'),
+    )
   })
 })

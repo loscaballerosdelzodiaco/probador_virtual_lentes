@@ -1,23 +1,15 @@
 import type { Product } from '../data/products'
+import { formatPrice } from '../lib/price'
 
 type ProductCardProps = {
   product: Product
 }
 
-function formatPrice(value: number) {
-  return new Intl.NumberFormat('es-SV', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value)
-}
-
 export function ProductCard({ product }: ProductCardProps) {
   const href = `#${product.id}`
-  const cardClassName = product.outOfStock ? 'card card--out-of-stock' : 'card'
 
   return (
-    <li className={cardClassName}>
-      {product.onSale ? <span className="badge">Oferta</span> : null}
+    <li className="card">
       <a className="card__media" href={href}>
         <img src={product.image} alt={product.name} />
       </a>
@@ -25,18 +17,11 @@ export function ProductCard({ product }: ProductCardProps) {
         <a href={href}>{product.name}</a>
       </h2>
       <p className="card__price">
-        {product.compareAt ? <del>{formatPrice(product.compareAt)}</del> : null}
         {formatPrice(product.price)}
       </p>
-      {product.outOfStock ? (
-        <span className="btn-loop" aria-disabled="true">
-          Agotado
-        </span>
-      ) : (
-        <a className="btn-loop" href={href}>
-          Ver aro
-        </a>
-      )}
+      <a className="btn-loop" href={href}>
+        Ver aro
+      </a>
     </li>
   )
 }
