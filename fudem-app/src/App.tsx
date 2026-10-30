@@ -12,6 +12,7 @@ import { DocumentosPage } from './pages/DocumentosPage'
 import { LoginPage } from './pages/LoginPage'
 import { PaymentPage } from './pages/PaymentPage'
 import { RegistroPage } from './pages/RegistroPage'
+import { ReturnsPage } from './pages/ReturnsPage'
 import { getTryOnModels } from './lib/tryOn/tryOnService'
 import type { TryOnModel } from './lib/tryOn/types'
 import { TryOnPage } from './pages/TryOnPage'
@@ -159,6 +160,14 @@ function App() {
                       Entrega
                     </a>
                   </li>
+                  <li className={route.name === 'devoluciones' ? 'is-active' : undefined}>
+                    <a
+                      href="/devoluciones"
+                      aria-current={route.name === 'devoluciones' ? 'page' : undefined}
+                    >
+                      Devoluciones
+                    </a>
+                  </li>
                 </>
               ) : null}
             </ul>
@@ -227,6 +236,10 @@ function App() {
 
         {!authLoading && canOpenCatalog && route.name === 'entrega' ? (
           <DeliveryPage pedidoId={route.pedidoId} />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name === 'devoluciones' ? (
+          <ReturnsPage />
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'catalogo' ? (
