@@ -4,11 +4,20 @@ export type AppRoute =
   | { name: 'catalogo'; productId: number | null }
   | { name: 'probador'; productId: number | null }
   | { name: 'pago'; productId: number | null }
+  | { name: 'entrega'; pedidoId: number | null }
   | { name: 'documentos' }
+  | { name: 'devoluciones' }
 
 export function productIdFromHash(hash: string): number | null {
   const value = hash.replace(/^#/, '')
-  if (!value || value === 'catalogo' || value === 'probador' || value === 'pago') {
+  if (
+    !value ||
+    value === 'catalogo' ||
+    value === 'probador' ||
+    value === 'pago' ||
+    value === 'entrega' ||
+    value === 'devoluciones'
+  ) {
     return null
   }
   const id = Number(value)
@@ -30,6 +39,15 @@ export function readAppRoute(
     return { name: 'documentos' }
   }
 
+  // HU7: solicitud de devolución y consulta de estado
+  if (path === '/devoluciones' || hashValue === 'devoluciones') {
+    return { name: 'devoluciones' }
+  }
+
+  if (path === '/entrega' || hashValue === 'entrega') {
+    return { name: 'entrega', pedidoId: productIdFromHash(hash) }
+  }
+
   if (path === '/probador' || hashValue === 'probador') {
     return { name: 'probador', productId: productIdFromHash(hash) }
   }
@@ -46,12 +64,15 @@ export function readAppRoute(
   return { name: 'registro' }
 }
 
-export function isCatalogRoute(route: AppRoute): boolean {
-  return route.name === 'catalogo'
-}
-
 export function isProtectedRoute(route: AppRoute): boolean {
-  return route.name === 'catalogo' || route.name === 'probador' || route.name === 'documentos' || route.name === 'pago'
+  return (
+    route.name === 'catalogo' ||
+    route.name === 'probador' ||
+    route.name === 'documentos' ||
+    route.name === 'pago' ||
+    route.name === 'entrega' ||
+    route.name === 'devoluciones'
+  )
 }
 
 export function replaceLocation(path: string): void {

@@ -69,6 +69,12 @@ export const DOCUMENTOS_LOAD_ERROR_MESSAGE =
 export const DOCUMENTO_REGISTRO_ERROR_MESSAGE =
   'No pudimos registrar el archivo. Inténtalo de nuevo en unos momentos.'
 
+export const DOCUMENTO_ELIMINAR_ERROR_MESSAGE =
+  'No pudimos eliminar el archivo. Inténtalo de nuevo en unos momentos.'
+
+export const DOCUMENTO_EN_USO_ERROR_MESSAGE =
+  'No pudimos eliminar el archivo porque ya está asociado a un pedido.'
+
 export function buildDocumentoInsert(documento: NuevoDocumento) {
   return {
     nombre_archivo: documento.nombre_archivo.trim(),
@@ -98,17 +104,42 @@ export async function listarDocumentos(): Promise<DocumentoCliente[]> {
 
 export function recetaAceptadaDe(
   documentos: DocumentoCliente[],
+  idsEnPedido: Iterable<number> = [],
 ): DocumentoCliente | null {
+  const usados = new Set(idsEnPedido)
   return (
     documentos.find(
       (documento) =>
-        documento.tipo === 'receta' && documento.estado_recepcion === 'recibida',
+        documento.tipo === 'receta' &&
+        documento.estado_recepcion === 'recibida' &&
+        !usados.has(documento.id),
     ) ?? null
   )
 }
 
+export async function listarIdsDocumentoEnPedidos(): Promise<number[]> {
+  const { data, error } = await supabase
+    .from('pedido')
+    .select('documento_id')
+    .not('documento_id', 'is', null)
+    .returns<{ documento_id: number }[]>()
+
+  if (error) {
+    throw new DocumentoCargaError(DOCUMENTOS_LOAD_ERROR_MESSAGE, 'temporary', {
+      cause: error,
+    })
+  }
+
+  return [...new Set((data ?? []).map((row) => row.documento_id))]
+}
+
+/** Receta recibida que todavía no está ligada a un pedido. */
 export async function obtenerRecetaAceptada(): Promise<DocumentoCliente | null> {
-  return recetaAceptadaDe(await listarDocumentos())
+  const [documentos, idsEnPedido] = await Promise.all([
+    listarDocumentos(),
+    listarIdsDocumentoEnPedidos(),
+  ])
+  return recetaAceptadaDe(documentos, idsEnPedido)
 }
 
 export async function registrarDocumento(
@@ -177,6 +208,43 @@ export async function descargarDocumento(documento: DocumentoCliente): Promise<B
   }
 
   return downloadDocumentoFile(documento.ubicacion_archivo)
+}
+
+function esDocumentoEnUso(error: { code?: string; message?: string } | null): boolean {
+  const text = `${error?.code ?? ''} ${error?.message ?? ''}`
+  return /23503|foreign key|restrict/i.test(text)
+}
+
+export async function eliminarDocumento(documento: DocumentoCliente): Promise<void> {
+  const usuarioId = await requireUsuarioId()
+  if (
+    documento.usuario_id !== usuarioId ||
+    !ubicacionPerteneceAlUsuario(usuarioId, documento.ubicacion_archivo)
+  ) {
+    throw new DocumentoCargaError(DOCUMENTO_ACCESS_ERROR_MESSAGE, 'temporary')
+  }
+
+  const { data, error } = await supabase
+    .from(DOCUMENTO_TABLE)
+    .delete()
+    .eq('id', documento.id)
+    .select(DOCUMENTO_COLUMNS)
+    .returns<DocumentoCliente>()
+    .maybeSingle()
+
+  if (error) {
+    throw new DocumentoCargaError(
+      esDocumentoEnUso(error) ? DOCUMENTO_EN_USO_ERROR_MESSAGE : DOCUMENTO_ELIMINAR_ERROR_MESSAGE,
+      'temporary',
+      { cause: error },
+    )
+  }
+
+  if (!data) {
+    throw new DocumentoCargaError(DOCUMENTO_ELIMINAR_ERROR_MESSAGE, 'temporary')
+  }
+
+  await removeDocumentoFile(documento.ubicacion_archivo)
 }
 
 export async function listarValidacion(

@@ -130,4 +130,13 @@ describe('TryOnPage estados (T13)', () => {
     await waitFor(() => expect(stage()).toHaveAttribute('data-status', 'photo'))
     expect(screen.queryByText(TRYON_STATUS_TEXT.loadingPhoto)).toBeNull()
   })
+
+  it('enlaza Comprar con el pago del producto', async () => {
+    vi.mocked(requestCameraAccess).mockReturnValue(new Promise(() => {}))
+    render(<TryOnPage productId={4} />)
+    expect(await screen.findByRole('link', { name: 'Comprar' })).toHaveAttribute(
+      'href',
+      '/pago#4',
+    )
+  })
 })

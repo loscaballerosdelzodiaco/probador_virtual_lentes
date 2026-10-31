@@ -60,19 +60,6 @@ function getLandmarker(): Promise<FaceLandmarker> {
   return landmarkerPromise
 }
 
-/** Descarga el modelo con anticipación (opcional). */
-export async function preloadFaceDetector(): Promise<void> {
-  await getLandmarker()
-}
-
-/** Libera el modelo; la próxima detección lo vuelve a cargar. */
-export function closeFaceDetector(): void {
-  const pending = landmarkerPromise
-  landmarkerPromise = null
-  queue = Promise.resolve()
-  pending?.then((landmarker) => landmarker.close()).catch(() => undefined)
-}
-
 function isFinitePoint(point: LandmarkXY | undefined): point is LandmarkXY {
   return Boolean(point) && Number.isFinite(point!.x) && Number.isFinite(point!.y)
 }

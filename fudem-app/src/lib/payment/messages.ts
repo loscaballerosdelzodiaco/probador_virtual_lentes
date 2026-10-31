@@ -2,7 +2,7 @@ export const PAYMENT_MESSAGES = {
   // A2: número de tarjeta incompleto o inválido
   numberRequired: 'Número de tarjeta: este campo es obligatorio.',
   numberInvalid: 'Número de tarjeta: usa solo números.',
-  numberLength: 'Número de tarjeta: debe tener entre 13 y 19 dígitos.',
+  numberLength: 'Número de tarjeta: debe tener entre 13 y 16 dígitos.',
   numberLuhn: 'Número de tarjeta: revisa el número, no es válido.',
   // A2: titular incompleto o inválido
   holderRequired: 'Titular: este campo es obligatorio.',
@@ -21,9 +21,9 @@ export const PAYMENT_MESSAGES = {
   cvvLength: 'CVV: debe tener 3 dígitos.',
   cvvLengthAmex: 'CVV: debe tener 4 dígitos para American Express.',
   // T4: producto de la pantalla de pago
-  productNotSelected: 'No seleccionaste ninguna montura.',
-  productMissing: 'No encontramos esta montura disponible para comprar.',
-  productNoPrice: 'Esta montura no tiene precio registrado, por eso no se puede comprar.',
+  productNotSelected: 'No seleccionaste ninguna aro.',
+  productMissing: 'No encontramos esta aro disponible para comprar.',
+  productNoPrice: 'Esta aro no tiene precio registrado, por eso no se puede comprar.',
   productLoadFailed:
     'No se pudo consultar el producto. Inténtalo de nuevo en unos momentos.',
   recipeRequired:

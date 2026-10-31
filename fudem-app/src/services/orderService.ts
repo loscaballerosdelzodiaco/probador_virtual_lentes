@@ -1,9 +1,11 @@
 import { supabase } from '../lib/supabase'
 import {
   ESTADO_PEDIDO,
+  type EntregaPedido,
   type EstadoPago,
   type EstadoPedido,
   type FormaPagoPedido,
+  type PedidoConEntrega,
   type PedidoRegistrado,
 } from '../lib/payment/orderStatus'
 import {
@@ -13,6 +15,39 @@ import {
 
 const PEDIDO_TABLE = 'pedido'
 const PAGO_TABLE = 'pago'
+
+export const PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE =
+  'No pudimos cargar el resumen de entrega. Inténtalo de nuevo en unos momentos.'
+
+const PEDIDO_ENTREGA_SELECT = `
+  id,
+  numero_pedido,
+  estado,
+  entrega (
+    tipo,
+    direccion,
+    telefono,
+    departamento:departamento_id ( nombre ),
+    municipio:municipio_id ( nombre ),
+    sucursal:sucursal_id ( nombre, direccion )
+  )
+`
+
+type EntregaJoinRow = {
+  tipo: 'domicilio' | 'sucursal'
+  direccion: string | null
+  telefono: string | null
+  departamento: { nombre: string } | null
+  municipio: { nombre: string } | null
+  sucursal: { nombre: string; direccion: string | null } | null
+}
+
+type PedidoJoinRow = {
+  id: number
+  numero_pedido: string
+  estado: EstadoPedido
+  entrega: EntregaJoinRow | EntregaJoinRow[] | null
+}
 
 type PedidoRow = {
   id: number
@@ -103,4 +138,67 @@ async function isOrderPaid(pedidoId: number): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function firstEntrega(value: PedidoJoinRow['entrega']): EntregaJoinRow | null {
+  if (!value) return null
+  return Array.isArray(value) ? (value[0] ?? null) : value
+}
+
+export function entregaDesdeFila(row: EntregaJoinRow | null): EntregaPedido | null {
+  if (!row) return null
+  if (row.tipo === 'domicilio') {
+    return {
+      tipo: 'domicilio',
+      departamento: row.departamento?.nombre?.trim() || '—',
+      municipio: row.municipio?.nombre?.trim() || '—',
+      direccion: row.direccion?.trim() || '—',
+      telefono: row.telefono?.trim() || '—',
+    }
+  }
+  return {
+    tipo: 'sucursal',
+    sucursalNombre: row.sucursal?.nombre?.trim() || '—',
+    sucursalDireccion: row.sucursal?.direccion?.trim() || '—',
+  }
+}
+
+function pedidoDesdeFila(row: PedidoJoinRow): PedidoConEntrega {
+  return {
+    id: row.id,
+    numero: row.numero_pedido,
+    estado: row.estado,
+    entrega: entregaDesdeFila(firstEntrega(row.entrega)),
+  }
+}
+
+/** Pedido del cliente con su entrega, o null si no existe / no es suyo. */
+export async function getPedidoConEntrega(
+  pedidoId: number,
+): Promise<PedidoConEntrega | null> {
+  const { data, error } = await supabase
+    .from(PEDIDO_TABLE)
+    .select(PEDIDO_ENTREGA_SELECT)
+    .eq('id', pedidoId)
+    .maybeSingle<PedidoJoinRow>()
+
+  if (error) {
+    throw new Error(PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE, { cause: error })
+  }
+  return data ? pedidoDesdeFila(data) : null
+}
+
+/** Último pedido de la sesión, para recargar /entrega sin hash. */
+export async function getUltimoPedidoConEntrega(): Promise<PedidoConEntrega | null> {
+  const { data, error } = await supabase
+    .from(PEDIDO_TABLE)
+    .select(PEDIDO_ENTREGA_SELECT)
+    .order('fecha_pedido', { ascending: false })
+    .limit(1)
+    .maybeSingle<PedidoJoinRow>()
+
+  if (error) {
+    throw new Error(PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE, { cause: error })
+  }
+  return data ? pedidoDesdeFila(data) : null
 }

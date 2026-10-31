@@ -38,14 +38,40 @@ vi.mock('../services/registroService', () => ({
   registrarUsuario: vi.fn(),
 }))
 
+vi.mock('../services/orderService', () => ({
+  PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE:
+    'No pudimos cargar el resumen de entrega. Inténtalo de nuevo en unos momentos.',
+  getPedidoConEntrega: vi.fn(async () => null),
+  getUltimoPedidoConEntrega: vi.fn(async () => null),
+  createOrder: vi.fn(),
+  recordPayment: vi.fn(),
+}))
+
+vi.mock('../services/deliveryService', () => ({
+  registrarEntrega: vi.fn(),
+}))
+
+vi.mock('../hooks/useDeliveryCatalogs', () => ({
+  useDeliveryCatalogs: () => ({
+    departamentos: [],
+    municipios: [],
+    sucursales: [],
+    loading: false,
+    error: null,
+  }),
+}))
+
 vi.mock('../services/documentoService', () => ({
   DOCUMENTOS_LOAD_ERROR_MESSAGE:
     'No pudimos cargar tus recetas y exámenes. Inténtalo de nuevo en unos momentos.',
   DOCUMENTO_REGISTRO_ERROR_MESSAGE:
     'No pudimos registrar el archivo. Inténtalo de nuevo en unos momentos.',
   listarDocumentos: vi.fn(async () => []),
+  listarIdsDocumentoEnPedidos: vi.fn(async () => []),
+  recetaAceptadaDe: vi.fn(() => null),
   guardarDocumento: vi.fn(),
   descargarDocumento: vi.fn(),
+  eliminarDocumento: vi.fn(),
   obtenerRecetaAceptada: vi.fn(async () => ({
     id: 44,
     usuario_id: '11111111-1111-1111-1111-111111111111',
@@ -88,6 +114,14 @@ describe('flujo de acceso', () => {
 
     expect(await screen.findByRole('heading', { name: 'Crear cuenta' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
+  })
+
+  it('redirige al login si se abre la entrega sin sesión', async () => {
+    window.history.replaceState(null, '', '/entrega')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Forma de entrega' })).not.toBeInTheDocument()
   })
 
   it('redirige al login si se abren las recetas sin sesión', async () => {
@@ -140,7 +174,7 @@ describe('flujo de acceso', () => {
     vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
     vi.mocked(getAvailableProductById).mockResolvedValue({
       id: 4,
-      nombre: 'Montura de prueba',
+      nombre: 'aro de prueba',
       precio: 99,
       sku: 'SKU-4',
       material: 'Metal',
@@ -154,19 +188,19 @@ describe('flujo de acceso', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Pago' })).toBeInTheDocument()
-    expect(await screen.findByText('Montura de prueba')).toBeInTheDocument()
+    expect(await screen.findByText('aro de prueba')).toBeInTheDocument()
     expect(getAvailableProductById).toHaveBeenCalledWith(4)
     expect(screen.queryByRole('heading', { name: 'Catálogo de lentes' })).not.toBeInTheDocument()
   })
 
-  it('avisa en el pago si la montura no existe o no tiene precio (T10)', async () => {
+  it('avisa en el pago si la aro no existe o no tiene precio (T10)', async () => {
     vi.mocked(getCurrentSession).mockResolvedValue(fakeSession)
     vi.mocked(getAvailableProductById).mockResolvedValue(null)
     window.history.replaceState(null, '', '/pago#99')
     render(<App />)
 
     expect(
-      await screen.findByText(/No encontramos esta montura disponible para comprar/),
+      await screen.findByText(/No encontramos esta aro disponible para comprar/),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Volver al catálogo' })).toHaveAttribute(
       'href',

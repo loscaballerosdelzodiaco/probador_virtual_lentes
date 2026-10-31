@@ -25,11 +25,14 @@ import { detectFace } from '../lib/tryOn/faceDetector'
 import { PHOTO_POSITION_UNIT } from '../lib/tryOn/adjust'
 import { isFaceFrontal } from '../lib/tryOn/facePose'
 import {
+  anchorFromImage,
+  drawCameraLensOnCanvas,
+  drawPhotoLensOnCanvas,
+} from '../lib/tryOn/glassesOverlay'
+import {
   validateFaceInImage,
   validateImageFile,
 } from '../lib/tryOn/imageValidation'
-import { getLensAnchor } from '../lib/tryOn/lensAnchor'
-import { computeLensTransform, drawLens } from '../lib/tryOn/lensTransform'
 import { TRYON_MESSAGES, TRYON_STATUS_TEXT } from '../lib/tryOn/messages'
 import { getTryOnStatus, type TryOnErrorKey } from '../lib/tryOn/status'
 import type { FaceData, LensAnchor, TryOnModel } from '../lib/tryOn/types'
@@ -39,7 +42,7 @@ export type TryOnMode = 'camera' | 'photo'
 export type { TryOnErrorKey }
 
 export type TryOnPageProps = {
-  /** Si no se pasa, se lee de la ruta /probador#<idProducto> */
+  /** Lo calcula appRoute (readAppRoute) desde /probador#<idProducto> y lo pasa App */
   productId?: number | null
   /** T6: modelos y selección */
   models?: TryOnModel[]
@@ -67,12 +70,6 @@ export type TryOnPageProps = {
 const DEFAULT_ADJUST: ManualAdjustValues = { dx: 0, dy: 0, scale: 1, rotation: 0 }
 const noop = () => {}
 
-function anchorFromImage(image: HTMLImageElement): LensAnchor | null {
-  const anchor = getLensAnchor(image)
-  if (!(anchor.width > 0 && anchor.height > 0)) return null
-  return anchor
-}
-
 function resolveSelectedId(
   selectedModelId: number | null | undefined,
   internalSelectedId: number | null,
@@ -89,63 +86,8 @@ function resolveSelectedId(
   return models[0]?.id ?? null
 }
 
-function drawPhotoLensOnCanvas(
-  canvas: HTMLCanvasElement,
-  photo: HTMLImageElement,
-  face: FaceData,
-  lensImage: HTMLImageElement,
-  lensAnchor: LensAnchor,
-  adjust: ManualAdjustValues,
-) {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  const width = photo.naturalWidth || photo.width
-  const height = photo.naturalHeight || photo.height
-  if (width <= 0 || height <= 0) return
-  canvas.width = width
-  canvas.height = height
-  const nudge = Math.max(width, height) * PHOTO_POSITION_UNIT
-  ctx.clearRect(0, 0, width, height)
-  ctx.drawImage(photo, 0, 0, width, height)
-  drawLens(
-    ctx,
-    lensImage,
-    lensAnchor,
-    computeLensTransform(face, lensAnchor, {
-      ...adjust,
-      dx: adjust.dx * nudge,
-      dy: adjust.dy * nudge,
-    }),
-  )
-}
-
-function drawCameraLensOnCanvas(
-  canvas: HTMLCanvasElement,
-  video: HTMLVideoElement,
-  face: FaceData,
-  lensImage: HTMLImageElement,
-  lensAnchor: LensAnchor,
-) {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  const width = video.videoWidth
-  const height = video.videoHeight
-  if (width <= 0 || height <= 0) return
-  if (canvas.width !== width) canvas.width = width
-  if (canvas.height !== height) canvas.height = height
-  ctx.clearRect(0, 0, width, height)
-  if (!isFaceFrontal(face)) return
-  drawLens(ctx, lensImage, lensAnchor, computeLensTransform(face, lensAnchor))
-}
-
-function readProductIdFromHash(): number | null {
-  const raw = window.location.hash.replace(/^#/, '').trim()
-  const id = Number(raw)
-  return Number.isInteger(id) && id > 0 ? id : null
-}
-
 export function TryOnPage({
-  productId,
+  productId = null,
   models = [],
   selectedModelId,
   onSelectModel = noop,
@@ -161,7 +103,6 @@ export function TryOnPage({
   errorKey = null,
   onDismissError = noop,
 }: TryOnPageProps) {
-  const [hashId, setHashId] = useState<number | null>(readProductIdFromHash)
   const [mode, setMode] = useState<TryOnMode>('camera')
   const [cameraError, setCameraError] = useState<TryOnErrorKey | null>(null)
   const [cameraAttempt, setCameraAttempt] = useState(0)
@@ -190,11 +131,10 @@ export function TryOnPage({
 
   const adjustValues = internalAdjust
   const canAdjustLens = Boolean(userPhoto && photoFace)
-  const currentProductId = productId !== undefined ? productId : hashId
   const selectedId = resolveSelectedId(
     selectedModelId,
     internalSelectedId,
-    currentProductId,
+    productId,
     models,
   )
   const selectedModel = models.find((model) => model.id === selectedId) ?? null
@@ -212,12 +152,6 @@ export function TryOnPage({
     setInternalAdjust(next)
     onAdjustChange(next)
   }
-
-  useEffect(() => {
-    const onHashChange = () => setHashId(readProductIdFromHash())
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
 
   useEffect(() => {
     return () => {
@@ -577,7 +511,7 @@ export function TryOnPage({
         <header className="try-on__header">
           <h1>Probador virtual</h1>
           <p>
-            Prueba monturas con la cámara o con una foto. Tu video y tus fotos
+            Prueba aros con la cámara o con una foto. Tu video y tus fotos
             no se guardan en el servidor.
           </p>
         </header>
@@ -706,6 +640,12 @@ export function TryOnPage({
               >
                 Capturar imagen
               </button>
+              <a
+                className="btn"
+                href={productId ? `/pago#${productId}` : '/catalogo'}
+              >
+                Comprar
+              </a>
               <p className="try-on__capture-hint">
                 La captura se descarga en tu dispositivo; no se envía al servidor.
               </p>

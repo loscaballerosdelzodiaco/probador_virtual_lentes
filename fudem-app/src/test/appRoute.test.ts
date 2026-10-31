@@ -40,6 +40,8 @@ describe('readAppRoute', () => {
     })
     expect(readAppRoute('/login', '')).toEqual({ name: 'login' })
     expect(readAppRoute('/documentos', '')).toEqual({ name: 'documentos' })
+    expect(readAppRoute('/entrega', '')).toEqual({ name: 'entrega', pedidoId: null })
+    expect(readAppRoute('/entrega', '#18')).toEqual({ name: 'entrega', pedidoId: 18 })
     expect(readAppRoute('/', '')).toEqual({ name: 'registro' })
   })
 
@@ -57,6 +59,7 @@ describe('readAppRoute', () => {
     expect(isProtectedRoute({ name: 'probador', productId: 3 })).toBe(true)
     expect(isProtectedRoute({ name: 'catalogo', productId: null })).toBe(true)
     expect(isProtectedRoute({ name: 'documentos' })).toBe(true)
+    expect(isProtectedRoute({ name: 'entrega', pedidoId: null })).toBe(true)
     expect(isProtectedRoute({ name: 'registro' })).toBe(false)
     expect(isProtectedRoute({ name: 'login' })).toBe(false)
   })

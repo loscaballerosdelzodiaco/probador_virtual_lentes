@@ -49,7 +49,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         <div className="auth-screen__orb auth-screen__orb--two"></div>
         <p className="auth-screen__brand">FUDEM</p>
         <p className="auth-screen__tagline">
-          Atención visual accesible, con un catálogo para elegir montura con
+          Atención visual accesible, con un catálogo para elegir aro con
           confianza.
         </p>
       </div>

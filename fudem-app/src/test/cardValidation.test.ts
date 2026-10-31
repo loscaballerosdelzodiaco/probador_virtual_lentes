@@ -38,7 +38,7 @@ describe('validación de tarjeta', () => {
 
   it('rechaza número con letras, muy corto o que no pasa Luhn', () => {
     expect(validateCard(tarjeta({ numero: '4242 abcd 4242' }), TODAY).numero).toMatch(/solo números/)
-    expect(validateCard(tarjeta({ numero: '4242 4242' }), TODAY).numero).toMatch(/entre 13 y 19/)
+    expect(validateCard(tarjeta({ numero: '4242 4242' }), TODAY).numero).toMatch(/entre 13 y 16/)
     expect(validateCard(tarjeta({ numero: '4242 4242 4242 4241' }), TODAY).numero).toMatch(/no es válido/)
   })
 

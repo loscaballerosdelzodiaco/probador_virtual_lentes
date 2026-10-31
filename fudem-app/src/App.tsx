@@ -7,10 +7,12 @@ import {
   type AppRoute,
 } from './lib/appRoute'
 import { CatalogPage } from './pages/CatalogPage'
+import { DeliveryPage } from './pages/DeliveryPage'
 import { DocumentosPage } from './pages/DocumentosPage'
 import { LoginPage } from './pages/LoginPage'
 import { PaymentPage } from './pages/PaymentPage'
 import { RegistroPage } from './pages/RegistroPage'
+import { ReturnsPage } from './pages/ReturnsPage'
 import { getTryOnModels } from './lib/tryOn/tryOnService'
 import type { TryOnModel } from './lib/tryOn/types'
 import { TryOnPage } from './pages/TryOnPage'
@@ -141,14 +143,32 @@ function App() {
                 </a>
               </li>
               {canOpenCatalog ? (
-                <li className={route.name === 'documentos' ? 'is-active' : undefined}>
-                  <a
-                    href="/documentos"
-                    aria-current={route.name === 'documentos' ? 'page' : undefined}
-                  >
-                    Recetas
-                  </a>
-                </li>
+                <>
+                  <li className={route.name === 'documentos' ? 'is-active' : undefined}>
+                    <a
+                      href="/documentos"
+                      aria-current={route.name === 'documentos' ? 'page' : undefined}
+                    >
+                      Recetas
+                    </a>
+                  </li>
+                  <li className={route.name === 'entrega' ? 'is-active' : undefined}>
+                    <a
+                      href="/entrega"
+                      aria-current={route.name === 'entrega' ? 'page' : undefined}
+                    >
+                      Entrega
+                    </a>
+                  </li>
+                  <li className={route.name === 'devoluciones' ? 'is-active' : undefined}>
+                    <a
+                      href="/devoluciones"
+                      aria-current={route.name === 'devoluciones' ? 'page' : undefined}
+                    >
+                      Devoluciones
+                    </a>
+                  </li>
+                </>
               ) : null}
             </ul>
           </nav>
@@ -212,6 +232,14 @@ function App() {
 
         {!authLoading && canOpenCatalog && route.name === 'documentos' ? (
           <DocumentosPage />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name === 'entrega' ? (
+          <DeliveryPage pedidoId={route.pedidoId} />
+        ) : null}
+
+        {!authLoading && canOpenCatalog && route.name === 'devoluciones' ? (
+          <ReturnsPage />
         ) : null}
 
         {!authLoading && canOpenCatalog && route.name === 'catalogo' ? (

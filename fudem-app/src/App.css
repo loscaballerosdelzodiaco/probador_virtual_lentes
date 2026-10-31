@@ -15,6 +15,9 @@ main {
 
 .site-footer {
   margin-top: auto;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .site-header__row {
@@ -290,9 +293,10 @@ main {
 }
 
 .site-footer .grid-footer {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
+  min-width: 0;
 }
 
 .site-footer__brand p {
@@ -318,7 +322,7 @@ main {
 
 @media (min-width: 768px) {
   .site-footer .grid-footer {
-    grid-template-columns: minmax(12rem, 1.4fr) minmax(0, 2fr) auto;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) minmax(0, auto);
     gap: var(--space-6);
   }
 
@@ -674,6 +678,28 @@ main {
 
 .documentos-list p {
   margin: 0;
+}
+
+.documentos-list__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.documentos-list__acciones .btn {
+  flex: 1 1 10rem;
+  min-height: 44px;
+}
+
+.documentos-alertas {
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
+}
+
+.documentos-alert {
+  margin: 0;
+  padding: 1.25em 1.5em;
 }
 
 .auth-form {

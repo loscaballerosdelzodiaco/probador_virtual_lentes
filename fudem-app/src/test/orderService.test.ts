@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PaymentAlreadyRecordedError } from '../lib/payment/paymentErrors'
 import { supabase } from '../lib/supabase'
-import { createOrder, recordPayment } from '../services/orderService'
+import {
+  PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE,
+  createOrder,
+  getPedidoConEntrega,
+  recordPayment,
+} from '../services/orderService'
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
@@ -167,5 +172,63 @@ describe('recordPayment', () => {
     await expect(
       recordPayment({ pedidoId: 123, estado: 'rechazado', ultimosDigitos: '0002' }),
     ).rejects.toThrow('No se pudo registrar el pago.')
+  })
+})
+
+describe('getPedidoConEntrega', () => {
+  beforeEach(() => {
+    vi.mocked(supabase.from).mockReset()
+  })
+
+  it('devuelve el pedido con la entrega a domicilio', async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: {
+        id: 15,
+        numero_pedido: 'PED-000015',
+        estado: 'pendiente de pago',
+        entrega: {
+          tipo: 'domicilio',
+          direccion: 'Colonia Escalón, casa 123',
+          telefono: '70000000',
+          departamento: { nombre: 'San Salvador' },
+          municipio: { nombre: 'Soyapango' },
+          sucursal: null,
+        },
+      },
+      error: null,
+    })
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({ maybeSingle }),
+      }),
+    } as never)
+
+    await expect(getPedidoConEntrega(15)).resolves.toEqual({
+      id: 15,
+      numero: 'PED-000015',
+      estado: 'pendiente de pago',
+      entrega: {
+        tipo: 'domicilio',
+        departamento: 'San Salvador',
+        municipio: 'Soyapango',
+        direccion: 'Colonia Escalón, casa 123',
+        telefono: '70000000',
+      },
+    })
+  })
+
+  it('explica si el resumen no se puede leer', async () => {
+    vi.mocked(supabase.from).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'permission denied' },
+          }),
+        }),
+      }),
+    } as never)
+
+    await expect(getPedidoConEntrega(1)).rejects.toThrow(PEDIDO_ENTREGA_LOAD_ERROR_MESSAGE)
   })
 })

@@ -55,12 +55,12 @@ describe('máscaras de formulario', () => {
     expect(sanitizeName('José-Luis')).toBe('José-Luis')
   })
 
-  it('agrupa el número de tarjeta de cuatro en cuatro y limita a 19 dígitos', () => {
+  it('agrupa el número de tarjeta de cuatro en cuatro y limita a 16 dígitos', () => {
     expect(maskCardNumber('4242')).toBe('4242')
     expect(maskCardNumber('42424242')).toBe('4242 4242')
     expect(maskCardNumber('4242-4242-4242-4242')).toBe('4242 4242 4242 4242')
     expect(maskCardNumber('4242 abcd 4242')).toBe('4242 4242')
-    expect(maskCardNumber('12345678901234567890123')).toBe('1234 5678 9012 3456 789')
+    expect(maskCardNumber('12345678901234567890123')).toBe('1234 5678 9012 3456')
   })
 
   it('pone la barra del vencimiento y limita a MM/AA', () => {
